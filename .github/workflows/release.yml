@@ -1,0 +1,321 @@
+name: Publish release
+
+# This repository IS the plugin. Push a version bump to main and this workflow builds
+# hmdg-cookie-consent.zip and publishes it as a GitHub release, which sites' built-in
+# updater installs unattended.
+#
+# GITHUB_TOKEN is issued automatically; `contents: write` below is what lets it create the
+# tag and the release. HMDG_RELEASE_SIGNING_KEY must be set as a repository secret.
+#
+# Idempotent by version: if a release for the current HMDG_CCM_VERSION already exists, the
+# run exits successfully without publishing.
+#
+# Releases are published as PRE-RELEASES and promoted by hand:
+# `gh release edit vX.Y.Z --latest --prerelease=false`. The updater reads /releases/latest,
+# which skips pre-releases.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+env:
+  PLUGIN_SLUG: hmdg-cookie-consent
+
+jobs:
+  publish:
+    name: Publish release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read plugin version
+        id: version
+        run: |
+          set -euo pipefail
+
+          # HMDG_CCM_VERSION is the authoritative version, and the plugin header must agree with
+          # it. Fail the build on drift rather than shipping a release whose two version numbers
+          # disagree — WordPress reads the header, the plugin reports the constant.
+          #
+          # sed, not grep -oP: PCRE mode is unavailable under some locales and fails open rather
+          # than loudly, which would hand both checks an empty string that compares equal.
+          CONST_VERSION=$(sed -n "s/^[[:space:]]*define([[:space:]]*'HMDG_CCM_VERSION'[[:space:]]*,[[:space:]]*'\([0-9.]*\)'.*/\1/p" hmdg-cookie-consent.php | head -1)
+          HEADER_VERSION=$(sed -n 's/^[[:space:]]*\*[[:space:]]*Version:[[:space:]]*\([0-9.]*\).*/\1/p' hmdg-cookie-consent.php | head -1)
+
+          echo "constant: $CONST_VERSION"
+          echo "header:   $HEADER_VERSION"
+
+          if [ -z "$CONST_VERSION" ] || [ -z "$HEADER_VERSION" ]; then
+            echo "::error::Could not parse a version out of hmdg-cookie-consent.php"
+            exit 1
+          fi
+
+          if [ "$CONST_VERSION" != "$HEADER_VERSION" ]; then
+            echo "::error::Version mismatch — header says $HEADER_VERSION, HMDG_CCM_VERSION says $CONST_VERSION. Bump both."
+            exit 1
+          fi
+
+          echo "version=$CONST_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check whether this version is already released
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="v${{ steps.version.outputs.version }}"
+
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — nothing to publish."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "Release $TAG does not exist yet — will publish."
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      # The config sync client fails soft by design — a bad endpoint changes nothing on the
+      # site and reports nothing to anybody. That is also why an unset hostname is dangerous:
+      # no site would ever enrol and nothing would say so. While DEFAULT_BASE is still the
+      # UNSET_BASE sentinel this step refuses to publish the build.
+      - name: Refuse to ship an unconfigured config-sync endpoint
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          if grep -q "const DEFAULT_BASE = self::UNSET_BASE;" includes/class-hmdg-config-sync.php; then
+            echo "::error::DEFAULT_BASE in includes/class-hmdg-config-sync.php is still the UNSET_BASE placeholder. Set the production configuration-service host before releasing."
+            exit 1
+          fi
+          echo "Config sync endpoint is set"
+
+      # Lint against 7.4 specifically, not "some modern PHP". PHP 8 syntax parses fine on 8.x and
+      # fatals on 7.4 — that exact mistake took client sites down in v1.2.0 via str_contains()
+      # and str_ends_with(). Client sites still run 7.4, so this is the gate that protects them.
+      - name: Set up PHP 7.4 for linting
+        if: steps.check.outputs.skip == 'false'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          # sodium named explicitly: the tests exercise ed25519 verification and
+          # the signing step below signs with it. Usually bundled, never assumed.
+          extensions: sodium
+          coverage: none
+
+      - name: Lint against PHP 7.4
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          FAILED=0
+          while IFS= read -r -d '' f; do
+            if ! php -l "$f"; then
+              FAILED=1
+            fi
+          done < <(find hmdg-cookie-consent.php includes -name '*.php' -print0)
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo "::error::PHP 7.4 syntax check failed — do not ship this."
+            exit 1
+          fi
+          echo "✅ PHP 7.4 syntax OK"
+
+      # Behaviour, not just syntax — the first behavioural gate in this workflow. It loads the
+      # real plugin files under front-end request conditions (is_admin() false, not cron, no
+      # WP_CLI) using WordPress shims, fires rest_api_init, and asserts the /verify enrolment
+      # route is registered and serves the key fingerprint. v1.5.0 and v1.6.0 both shipped with
+      # that route unreachable on exactly that request class, so no site could enrol and
+      # fail-soft reported nothing; this step is what stops that regressing. Runs on the same
+      # PHP 7.4 as the lint, so it also proves the code executes (not merely parses) on the
+      # oldest PHP in the fleet. tests/ is not in the archive allowlist and never ships.
+      - name: Run regression tests against PHP 7.4
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          for t in tests/*.php; do
+            echo "== $t"
+            php "$t"
+          done
+
+      - name: Build the plugin zip
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+
+          # The top-level folder inside the zip must be exactly the plugin slug. WordPress takes
+          # the installed folder name from the archive, and a mismatched folder name means two
+          # copies of the plugin load at once — fatal class redeclare, site down. The updater's
+          # upgrader_post_install hook also forces this name; the zip agreeing is belt and braces.
+          mkdir -p "dist/$PLUGIN_SLUG"
+
+          cp hmdg-cookie-consent.php "dist/$PLUGIN_SLUG/"
+          cp -r includes "dist/$PLUGIN_SLUG/"
+          cp README.md "dist/$PLUGIN_SLUG/"
+
+          # Fixed filename, never versioned. Versioned zip filenames are how sites ended up with
+          # hmdg-cookie-consent-1.3.0/ sitting alongside hmdg-cookie-consent-v1.2.0/.
+          (cd dist && zip -r "../$PLUGIN_SLUG.zip" "$PLUGIN_SLUG")
+
+          echo "--- archive contents ---"
+          unzip -l "$PLUGIN_SLUG.zip"
+
+      - name: Verify the archive
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+
+          # Every path must sit under the plugin slug folder. A zip whose files land at the root
+          # installs into a folder named after the zip instead, which is the fatal-error case.
+          STRAY=$(unzip -Z1 "$PLUGIN_SLUG.zip" | grep -v "^$PLUGIN_SLUG/" || true)
+          if [ -n "$STRAY" ]; then
+            echo "::error::Files outside $PLUGIN_SLUG/ in the archive:"
+            echo "$STRAY"
+            exit 1
+          fi
+
+          # The plugin must actually be in there.
+          if ! unzip -Z1 "$PLUGIN_SLUG.zip" | grep -qx "$PLUGIN_SLUG/hmdg-cookie-consent.php"; then
+            echo "::error::hmdg-cookie-consent.php missing from the archive"
+            exit 1
+          fi
+          if ! unzip -Z1 "$PLUGIN_SLUG.zip" | grep -qx "$PLUGIN_SLUG/includes/class-hmdg-updater.php"; then
+            echo "::error::includes/class-hmdg-updater.php missing from the archive"
+            exit 1
+          fi
+          # v1.5.0. Without this a build can silently ship without the sync client, and every
+          # site then quietly never enrols -- fail-soft means nothing anywhere reports it.
+          if ! unzip -Z1 "$PLUGIN_SLUG.zip" | grep -qx "$PLUGIN_SLUG/includes/class-hmdg-config-sync.php"; then
+            echo "::error::includes/class-hmdg-config-sync.php missing from the archive"
+            exit 1
+          fi
+
+          # The leak guard. Nothing reaches a release artifact unless it is named here, so
+          # adding a file to the plugin means adding it to this list deliberately, in the
+          # same commit.
+          EXPECTED=$(printf '%s\n' \
+            "$PLUGIN_SLUG/" \
+            "$PLUGIN_SLUG/hmdg-cookie-consent.php" \
+            "$PLUGIN_SLUG/README.md" \
+            "$PLUGIN_SLUG/includes/" \
+            "$PLUGIN_SLUG/includes/class-hmdg-updater.php" \
+            "$PLUGIN_SLUG/includes/class-hmdg-config-sync.php" \
+            | sort)
+
+          UNEXPECTED=$(comm -13 <(printf '%s\n' "$EXPECTED") <(unzip -Z1 "$PLUGIN_SLUG.zip" | sort) || true)
+          if [ -n "$UNEXPECTED" ]; then
+            echo "::error::Unexpected files in the release artifact:"
+            echo "$UNEXPECTED"
+            exit 1
+          fi
+
+          echo "✅ Archive structure correct"
+
+      # v1.7.0: every release is SIGNED, and the updater on sites refuses a
+      # package that does not verify against the public key embedded in
+      # class-hmdg-updater.php. Three refusals below, each deliberate:
+      #
+      #   * no HMDG_RELEASE_SIGNING_KEY secret -> no release. An unsigned
+      #     release would not install anywhere.
+      #   * derived public key != embedded public key -> no release. This
+      #     catches a rotated or mispasted seed before it ships. Rotation is
+      #     a two-step (see the updater header).
+      #   * the freshly signed zip must verify here, with the same primitive
+      #     the sites use, before it is allowed to exist as a release.
+      - name: Sign the plugin zip
+        if: steps.check.outputs.skip == 'false'
+        env:
+          SIGNING_SEED: ${{ secrets.HMDG_RELEASE_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SIGNING_SEED:-}" ]; then
+            echo "::error::HMDG_RELEASE_SIGNING_KEY is not set. Every release must be signed — the fleet's updater refuses unsigned packages. Add the base64 32-byte seed as a repository secret."
+            exit 1
+          fi
+
+          EMBEDDED=$(sed -n "s/.*PUBLIC_KEY = '\([A-Za-z0-9+/=]*\)'.*/\1/p" includes/class-hmdg-updater.php | head -1)
+          if [ -z "$EMBEDDED" ]; then
+            echo "::error::Could not read PUBLIC_KEY out of includes/class-hmdg-updater.php"
+            exit 1
+          fi
+
+          php -r '
+            $seed = base64_decode((string) getenv("SIGNING_SEED"), true);
+            if ($seed === false || strlen($seed) !== 32) {
+              fwrite(STDERR, "HMDG_RELEASE_SIGNING_KEY is not a base64 32-byte seed\n"); exit(1);
+            }
+            $kp  = sodium_crypto_sign_seed_keypair($seed);
+            $pub = base64_encode(sodium_crypto_sign_publickey($kp));
+            if ($pub !== $argv[2]) {
+              fwrite(STDERR, "Derived public key $pub does not match the embedded PUBLIC_KEY $argv[2]. A release signed with this seed would fail verification on every site. Refusing.\n"); exit(1);
+            }
+            $zip = file_get_contents($argv[1]);
+            $sig = sodium_crypto_sign_detached($zip, sodium_crypto_sign_secretkey($kp));
+            if (!sodium_crypto_sign_verify_detached($sig, $zip, base64_decode($argv[2]))) {
+              fwrite(STDERR, "Self-verification of the fresh signature failed\n"); exit(1);
+            }
+            file_put_contents($argv[1] . ".sig", base64_encode($sig));
+            echo "signed " . $argv[1] . " (" . strlen($zip) . " bytes), key " . $pub . "\n";
+          ' "$PLUGIN_SLUG.zip" "$EMBEDDED"
+
+      - name: Create the release
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v${VERSION}"
+
+          # Pull this version's changelog section out of README.md for the release notes. The
+          # plugin's updater renders these notes as the changelog shown in wp-admin.
+          NOTES=$(awk -v ver="$VERSION" '
+            $0 ~ "^#+ .*" ver { found=1; next }
+            found && /^#+ / { exit }
+            found { print }
+          ' README.md)
+
+          if [ -z "$(echo "$NOTES" | tr -d '[:space:]')" ]; then
+            NOTES="Release ${TAG}."
+          fi
+
+          printf '%s\n' "$NOTES" > notes.md
+          echo "--- release notes ---"
+          cat notes.md
+
+          # PRE-RELEASE, deliberately. Nothing installs anywhere until somebody promotes the
+          # release by hand:
+          #
+          #   gh release edit "$TAG" --latest --prerelease=false
+          gh release create "$TAG" "$PLUGIN_SLUG.zip" "$PLUGIN_SLUG.zip.sig" \
+            --repo "${{ github.repository }}" \
+            --title "v${VERSION}" \
+            --notes-file notes.md \
+            --prerelease
+
+          echo "✅ Published $TAG"
+
+      - name: Summary
+        if: always()
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [ "${{ steps.check.outputs.skip }}" = "true" ]; then
+            echo "⏭️  v$VERSION already released — nothing published." >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ job.status }}" = "success" ]; then
+            echo "✅ Published v$VERSION." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Published as a **pre-release** - nothing installs anywhere yet, because" >> $GITHUB_STEP_SUMMARY
+            echo "/releases/latest skips pre-releases. Promote it once a canary site has" >> $GITHUB_STEP_SUMMARY
+            echo "run it for a day:" >> $GITHUB_STEP_SUMMARY
+            echo "    gh release edit v$VERSION --latest --prerelease=false" >> $GITHUB_STEP_SUMMARY
+            echo "Client sites then check on wp-cron (twice daily) and install unattended." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Failed to publish v$VERSION." >> $GITHUB_STEP_SUMMARY
+          fi
