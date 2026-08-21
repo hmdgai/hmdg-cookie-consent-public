@@ -30,6 +30,15 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
+### 2.0.1 — Pre-release Installs Verify Correctly
+
+- Fixed: installing a pre-release directly by its download URL was refused as "unsigned".
+  The updater looked the signature up in the latest promoted release's metadata, which
+  does not contain a pre-release's files; it now takes the signature published beside the
+  exact file being installed. Verification remains strict — an actually unsigned build is
+  still refused.
+- No consent-banner design, settings field, or frontend style changes.
+
 ### 2.0.0 — Fleet Release
 
 - Version number moves to 2.0.0 so every site, including those running older plugin

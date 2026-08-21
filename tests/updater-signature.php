@@ -119,8 +119,8 @@ $GLOBALS['__transients'][ $cache_key ] = (object) [
 	                           'browser_download_url' => 'https://github.com/hmdgai/hmdg-cookie-consent-public/releases/download/v9.9.9/hmdg-cookie-consent.zip' ] ],
 ];
 $r = $u->verify_download( false, 'https://github.com/hmdgai/hmdg-cookie-consent-public/releases/download/v9.9.9/hmdg-cookie-consent.zip' );
-check( 'unsigned release refused',
-	is_wp_error( $r ) && $r->get_error_code() === 'hmdg_unsigned_release' );
+check( 'unsigned release refused (direct URL: sibling .sig unreachable -> bad_signature)',
+	is_wp_error( $r ) && $r->get_error_code() === 'hmdg_bad_signature' );
 
 // Ours, with a .sig asset, but signed by a key that is NOT the embedded one:
 // refused. This is the compromised-channel case, end to end.
@@ -146,6 +146,24 @@ $GLOBALS['__sig_body'] = ''; $GLOBALS['__sig_status'] = 404;
 $r = $u->verify_download( false, 'https://github.com/hmdgai/hmdg-cookie-consent-public/releases/download/v9.9.9/hmdg-cookie-consent.zip' );
 check( 'unreachable signature refused',
 	is_wp_error( $r ) && $r->get_error_code() === 'hmdg_bad_signature' );
+
+// v2.0.1 REGRESSION: a direct release-asset URL derives its signature from the
+// package URL itself (sibling .sig), NOT from /releases/latest metadata. With
+// metadata absent entirely — a PRE-release being installed while no promoted
+// release exists, the canary flow — the check must proceed to the signature
+// (here: wrong key -> bad_signature), never refuse as "unsigned". v2.0.0's
+// canary was refused exactly that way.
+$u->clear_cache();
+$GLOBALS['__transients'][ $cache_key ] = 'hmdg_release_check_failed';   // latest = 404, cached
+$GLOBALS['__sig_body'] = $sig; $GLOBALS['__sig_status'] = 200;          // sibling .sig reachable
+$r = $u->verify_download( false, 'https://github.com/hmdgai/hmdg-cookie-consent-public/releases/download/v9.9.9/hmdg-cookie-consent.zip' );
+check( 'pre-release direct URL: sig derived from package, not latest metadata',
+	is_wp_error( $r ) && $r->get_error_code() === 'hmdg_bad_signature' );
+
+// ...while a NON-direct package form with no metadata still refuses closed.
+$r = $u->verify_download( false, 'https://api.github.com/repos/hmdgai/hmdg-cookie-consent-public/releases/assets/12345' );
+check( 'api-asset URL with no metadata still refuses as unsigned',
+	is_wp_error( $r ) && $r->get_error_code() === 'hmdg_unsigned_release' );
 
 echo $failures === 0 ? "\nOK — all assertions passed\n" : "\n$failures assertion(s) FAILED\n";
 exit( $failures === 0 ? 0 : 1 );

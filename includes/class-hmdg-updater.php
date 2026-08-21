@@ -287,7 +287,19 @@ final class HMDG_GitHub_Updater {
             require_once ABSPATH . 'wp-admin/includes/file.php';
         }
 
-        $sig_url = $this->get_signature_url();
+        // v2.0.1: for a direct release-asset URL, the signature is the sibling
+        // asset — derive it from the package URL itself. Looking it up through
+        // get_github_release() reads /releases/LATEST, which does not contain a
+        // PRE-release's artifacts at all, so a manual `wp plugin install <url>`
+        // of a pre-release (the canary flow) was refused as "unsigned" even
+        // though its .sig sat right beside the zip. The metadata lookup remains
+        // the fallback for the tokened api.github.com asset form, whose package
+        // URL always came from the latest-release metadata anyway.
+        if ( preg_match( '#^https://github\.com/[^/]+/[^/]+/releases/download/[^/]+/.+\.zip$#', $package ) ) {
+            $sig_url = $package . '.sig';
+        } else {
+            $sig_url = $this->get_signature_url();
+        }
         if ( $sig_url === '' ) {
             return new WP_Error( 'hmdg_unsigned_release',
                 'HMDG Cookie Consent: this release carries no signature asset. '
