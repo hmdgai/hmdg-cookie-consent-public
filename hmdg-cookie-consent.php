@@ -5,7 +5,7 @@
  * Description:  UK GDPR (PECR) & EU GDPR compliant cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      1.7.2
+ * Version:      2.0.0
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '1.7.2' );
+define( 'HMDG_CCM_VERSION', '2.0.0' );
 define( 'HMDG_CCM_FILE',    __FILE__ );
 define( 'HMDG_CCM_COOKIE',  'hmdg_cookie_consent' );
 define( 'HMDG_CCM_EXPIRY',  180 );

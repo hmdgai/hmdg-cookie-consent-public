@@ -390,6 +390,20 @@ final class HMDG_Config_Sync {
 
 		if ( $code === 429 ) {
 			// Called too soon. Harmless: the next scheduled run is a week away.
+			//
+			// v2.0.0: if a sync SUCCEEDED minutes ago, keep saying so. Activation
+			// schedules two cron events (the +60s first run and the weekly), and a
+			// deploy that triggers due events runs both back-to-back — the first
+			// enrols and applies config, the second lands here. Recording
+			// 'throttled' over that fresh 'ok' put a warning banner on a perfectly
+			// configured site. A 429 seconds after success is not a state change:
+			// note the attempt, keep the status and last_success untouched.
+			$state = self::state();
+			if ( ( time() - (int) ( $state['last_success'] ?? 0 ) ) < 15 * MINUTE_IN_SECONDS ) {
+				$state['last_attempt'] = time();
+				update_option( self::OPT_STATE, $state, 'no' );
+				return;
+			}
 			self::set_state( [ 'status' => 'throttled', 'error' => '' ] );
 			return;
 		}

@@ -30,6 +30,16 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
+### 2.0.0 — Fleet Release
+
+- Version number moves to 2.0.0 so every site, including those running older plugin
+  lineages with higher version numbers, receives updates correctly from here on. No
+  functional change is implied by the jump.
+- Fixed a misleading status: a rate-limited configuration call arriving moments after a
+  successful one no longer replaces the "synced" status with a warning. The success and
+  its timestamp are kept; the extra attempt is simply noted.
+- No consent-banner design, settings field, or frontend style changes.
+
 ### 1.7.2 — Clean Start
 
 - No functional changes. Repository history consolidated; code and behaviour are identical
