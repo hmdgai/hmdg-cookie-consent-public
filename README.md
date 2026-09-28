@@ -30,6 +30,18 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
+### 2.0.2 — Mobile Consent Visibility
+
+- The consent surface, heading, body text, links and controls use a fixed high-contrast
+  palette rather than inheriting Elementor colours from each site.
+- Reject All and Accept All use the same filled dark treatment in the banner and preferences
+  modal. Customise and Save My Preferences remain visually distinct outline controls.
+- The banner and preferences modal use dynamic viewport limits and touch scrolling on
+  short screens. Bottom padding respects device safe areas.
+- The floating preferences icon stays hidden while the banner is open, even when a site's
+  button styles set their own display value.
+- Consent choices, stored records, Google signals and booking tracking are unchanged.
+
 ### 2.0.1 — Pre-release Installs Verify Correctly
 
 - Fixed: installing a pre-release directly by its download URL was refused as "unsigned".
