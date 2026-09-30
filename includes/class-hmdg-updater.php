@@ -391,14 +391,24 @@ final class HMDG_GitHub_Updater {
 
         global $wp_filesystem;
 
-        $expected_dir  = WP_PLUGIN_DIR . '/' . dirname( $this->basename );
-        $installed_dir = $result['destination'];
+        // v2.0.3: compare WITHOUT trailing slashes. WordPress passes the
+        // destination with one; the old strict comparison treated every update
+        // as a misnamed folder, deleted the copy just installed, and reported
+        // success, so WordPress discarded its backup and the plugin was gone.
+        $expected_dir  = untrailingslashit( WP_PLUGIN_DIR . '/' . dirname( $this->basename ) );
+        $installed_dir = untrailingslashit( $result['destination'] );
 
         if ( $installed_dir !== $expected_dir ) {
             if ( $wp_filesystem->exists( $expected_dir ) ) {
                 $wp_filesystem->delete( $expected_dir, true );
             }
-            $wp_filesystem->move( $installed_dir, $expected_dir );
+            // A failed move must be reported: a WP_Error here is what makes
+            // WordPress restore the previous version from its backup.
+            if ( ! $wp_filesystem->move( $installed_dir, $expected_dir ) ) {
+                return new WP_Error( 'hmdg_move_failed',
+                    'HMDG Cookie Consent: the update could not be moved into place. '
+                    . 'The previous version is restored from its backup.' );
+            }
             $result['destination']        = $expected_dir;
             $result['destination_name']   = dirname( $this->basename );
             $result['remote_destination'] = $expected_dir;

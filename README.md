@@ -30,6 +30,18 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
+### 2.0.3 — Automatic Updates No Longer Remove the Plugin
+
+- Fixed: an automatic update deleted the plugin instead of replacing it. The updater
+  compared the install folder WordPress reported, which ends in a slash, with one that did
+  not, treated every update as a misnamed folder, and removed the copy it had just
+  installed.
+- If an update cannot be moved into place, the updater now reports an error, so WordPress
+  restores the previous version from its backup instead of discarding it.
+- Sites running an earlier version must be updated by a direct install, not by automatic
+  update: the update step runs the version already installed.
+- Consent choices, stored records, Google signals and booking tracking are unchanged.
+
 ### 2.0.2 — Mobile Consent Visibility
 
 - The consent surface, heading, body text, links and controls use a fixed high-contrast
