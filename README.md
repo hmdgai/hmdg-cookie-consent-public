@@ -30,6 +30,13 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
+### 2.0.4 — Clearer Advertising Disclosure
+
+- The banner now states that cookies and personal data are used for ads personalisation
+  and measurement, and that they are shared with partners including Google, as Google's
+  EU User Consent Policy requires on the first layer of a consent banner.
+- Consent choices, stored records, Google signals and booking tracking are unchanged.
+
 ### 2.0.3 — Automatic Updates No Longer Remove the Plugin
 
 - Fixed: an automatic update deleted the plugin instead of replacing it. The updater

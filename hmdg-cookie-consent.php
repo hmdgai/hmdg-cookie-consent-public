@@ -5,7 +5,7 @@
  * Description:  UK GDPR (PECR) & EU GDPR compliant cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      2.0.3
+ * Version:      2.0.4
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '2.0.3' );
+define( 'HMDG_CCM_VERSION', '2.0.4' );
 define( 'HMDG_CCM_FILE',    __FILE__ );
 define( 'HMDG_CCM_COOKIE',  'hmdg_cookie_consent' );
 define( 'HMDG_CCM_EXPIRY',  180 );
@@ -879,7 +879,7 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
         <div class="hmdg-banner-inner">
             <div class="hmdg-banner-content"><div class="hmdg-banner-text">
                 <div class="hmdg-banner-title" role="heading" aria-level="2">We value your privacy</div>
-                <p class="hmdg-banner-body">We use cookies to personalise content and analyse traffic. You can choose which cookies to allow.
+                <p class="hmdg-banner-body">We and our partners, including Google, use cookies and personal data to analyse traffic and for ads personalisation and measurement. You can accept, reject or choose which cookies to allow.
                     &nbsp;<a href="<?php echo $pp; ?>" class="hmdg-link" target="_blank" rel="noopener">Privacy Policy</a>
                     &nbsp;&bull;&nbsp;<a href="<?php echo $cp; ?>" class="hmdg-link" target="_blank" rel="noopener">Cookie Policy</a>
                     &nbsp;&bull;&nbsp;<a href="<?php echo $tc; ?>" class="hmdg-link" target="_blank" rel="noopener">Terms &amp; Conditions</a>
