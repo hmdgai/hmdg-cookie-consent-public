@@ -5,7 +5,7 @@
  * Description:  UK GDPR (PECR) & EU GDPR compliant cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      2.0.4
+ * Version:      2.0.5
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,10 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '2.0.4' );
+define( 'HMDG_CCM_VERSION', '2.0.5' );
+// Revision of the banner's disclosure wording. Raise it when that wording changes, and every
+// stored consent becomes stale. See effective_policy_version(). 2 = v2.0.4 ads-personalisation text.
+define( 'HMDG_CCM_CONSENT_REVISION', '2' );
 define( 'HMDG_CCM_FILE',    __FILE__ );
 define( 'HMDG_CCM_COOKIE',  'hmdg_cookie_consent' );
 define( 'HMDG_CCM_EXPIRY',  180 );
@@ -642,6 +645,17 @@ ADMINCSS;
         return (string) ( $this->opts[ $key ] ?? '' );
     }
 
+    /**
+     * The policy version stored with each consent: the site's own Policy Version setting plus
+     * the plugin's consent-wording revision. Raising HMDG_CCM_CONSENT_REVISION when the banner's
+     * disclosure changes makes every consent given under the old wording stale, so visitors are
+     * asked again on each site exactly when it receives the new wording, with no per-site edit.
+     */
+    public static function effective_policy_version( string $site_version ): string {
+        $site_version = '' === $site_version ? '1' : $site_version;
+        return $site_version . '-r' . HMDG_CCM_CONSENT_REVISION;
+    }
+
     /* Build a merged list of all booking domains from enabled platforms + custom booking_domains field */
     private function get_all_booking_domains(): array {
         $enabled = array_filter( array_map( 'trim', explode( ',', $this->opt('enabled_platforms') ) ) );
@@ -724,7 +738,7 @@ ADMINCSS;
         if ( ! $this->is_configured() ) return;
         $cookie  = HMDG_CCM_COOKIE;
         $debug   = $this->opt('debug_mode') === '1' ? 'true' : 'false';
-        $pol_ver = esc_js( $this->opt('policy_version') ?: '1' );
+        $pol_ver = esc_js( self::effective_policy_version( $this->opt('policy_version') ) );
         ?>
 <!-- HMDG CCM v<?php echo esc_html( HMDG_CCM_VERSION ); ?> | Step 1/3: Consent defaults -->
 <script id="hmdg-consent-defaults" data-cfasync="false" data-no-optimize="1" data-rocket-exclude="true" data-pagespeed-no-defer>
@@ -825,7 +839,7 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
             'debug'                   => (bool) $this->opt('debug_mode'),
             'gtagId'                  => $this->opt('gtag_id'),
             'gtmId'                   => $this->opt('gtm_id'),
-            'policyVersion'           => $this->opt('policy_version') ?: '1',
+            'policyVersion'           => self::effective_policy_version( $this->opt('policy_version') ),
             'reloadConsent'           => (bool) $this->opt('reload_on_consent'),
             'ga4MeasurementId'        => $this->opt('ga4_measurement_id'),
             // v1.2.0: universal booking config
@@ -1089,7 +1103,12 @@ CSS;
     var esc = CNAME.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     var m = document.cookie.match('(?:^|; )' + esc + '=([^;]*)');
     if (!m) return null;
-    try { return JSON.parse(decodeURIComponent(m[1])); } catch(e) { return null; }
+    var c;
+    try { c = JSON.parse(decodeURIComponent(m[1])); } catch(e) { return null; }
+    /* v2.0.5: a consent given under another policy version is no consent. The head script
+       clears it too; this holds even where an optimiser has removed that script. */
+    if (c && c.policyVersion && c.policyVersion !== POLICY_VER) return null;
+    return c;
   }
   function readRawCookie(name) {
     var esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1819,7 +1838,7 @@ JS;
                             <div class="card-body">
                                 <div class="field-row"><div class="row align-items-start">
                                     <div class="col-sm-4"><label class="form-label" for="policy_version">Policy Version</label></div>
-                                    <div class="col-sm-8"><input type="text" id="policy_version" name="hmdg_ccm_options[policy_version]" value="<?php echo esc_attr($o['policy_version'] ?: '1'); ?>" placeholder="1" class="form-control form-control-sm" style="max-width:100px;"><div class="form-text"><strong>Increment</strong> when policies change to force re-consent.</div></div>
+                                    <div class="col-sm-8"><input type="text" id="policy_version" name="hmdg_ccm_options[policy_version]" value="<?php echo esc_attr($o['policy_version'] ?: '1'); ?>" placeholder="1" class="form-control form-control-sm" style="max-width:100px;"><div class="form-text"><strong>Increment</strong> when policies change to force re-consent. Stored consents also carry the plugin's banner-wording revision (<code><?php echo esc_html( self::effective_policy_version( (string) ( $o['policy_version'] ?? '' ) ) ); ?></code>), which re-prompts visitors when the plugin's disclosure text changes.</div></div>
                                 </div></div>
                                 <div class="field-row"><div class="row align-items-start">
                                     <div class="col-sm-4"><label class="form-label" for="reload_on_consent">Reload After Consent</label></div>

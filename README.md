@@ -30,6 +30,16 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
+### 2.0.5 — Visitors Are Asked Again Under the New Wording
+
+- Consents given before the 2.0.4 banner wording are no longer honoured: every visitor sees
+  the banner once more and chooses under the text that discloses ads personalisation and
+  sharing with Google.
+- Stored consents now carry the plugin's banner-wording revision alongside the site's own
+  Policy Version, so a future wording change re-prompts visitors without editing each site.
+  Raising the Policy Version in settings still re-prompts as before.
+- Google signals, booking tracking and every other setting are unchanged.
+
 ### 2.0.4 — Clearer Advertising Disclosure
 
 - The banner now states that cookies and personal data are used for ads personalisation
