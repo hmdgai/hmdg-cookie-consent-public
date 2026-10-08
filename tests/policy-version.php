@@ -47,8 +47,8 @@ check( 'banner config uses the effective version',
 	strpos( $src, "'policyVersion'           => self::effective_policy_version( \$this->opt('policy_version') )," ) !== false );
 check( 'no code path still sends the bare site version',
 	strpos( $src, "\$this->opt('policy_version') ?: '1'" ) === false );
-check( 'banner script ignores a consent from another policy version',
-	strpos( $src, "if (c && c.policyVersion && c.policyVersion !== POLICY_VER) return null;" ) !== false );
+check( 'banner script ignores a consent from another policy version (bar the 2.0.6 legacy case)',
+	strpos( $src, "if (String(c.policyVersion) !== SITE_VER) return null;" ) !== false );
 
 echo $failures === 0 ? "\nOK — all assertions passed\n" : "\n$failures assertion(s) FAILED\n";
 exit( $failures === 0 ? 0 : 1 );

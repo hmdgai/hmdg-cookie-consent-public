@@ -5,7 +5,7 @@
  * Description:  UK GDPR (PECR) & EU GDPR compliant cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      2.0.5
+ * Version:      2.0.6
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '2.0.5' );
+define( 'HMDG_CCM_VERSION', '2.0.6' );
 // Revision of the banner's disclosure wording. Raise it when that wording changes, and every
 // stored consent becomes stale. See effective_policy_version(). 2 = v2.0.4 ads-personalisation text.
 define( 'HMDG_CCM_CONSENT_REVISION', '2' );
@@ -652,8 +652,17 @@ ADMINCSS;
      * asked again on each site exactly when it receives the new wording, with no per-site edit.
      */
     public static function effective_policy_version( string $site_version ): string {
-        $site_version = '' === $site_version ? '1' : $site_version;
-        return $site_version . '-r' . HMDG_CCM_CONSENT_REVISION;
+        return self::site_policy_version( $site_version ) . '-r' . HMDG_CCM_CONSENT_REVISION;
+    }
+
+    /**
+     * v2.0.6: the site's own Policy Version, '1' when unset. A consent stamped with exactly this
+     * (no "-r" suffix) was given under the banner wording before 2.0.4: it is kept, its analytics
+     * and functional choices are honoured, and its marketing choice is not. See the head script
+     * and readCookie().
+     */
+    public static function site_policy_version( string $site_version ): string {
+        return '' === $site_version ? '1' : $site_version;
     }
 
     /* Build a merged list of all booking domains from enabled platforms + custom booking_domains field */
@@ -739,6 +748,7 @@ ADMINCSS;
         $cookie  = HMDG_CCM_COOKIE;
         $debug   = $this->opt('debug_mode') === '1' ? 'true' : 'false';
         $pol_ver = esc_js( self::effective_policy_version( $this->opt('policy_version') ) );
+        $site_ver = esc_js( self::site_policy_version( $this->opt('policy_version') ) );
         ?>
 <!-- HMDG CCM v<?php echo esc_html( HMDG_CCM_VERSION ); ?> | Step 1/3: Consent defaults -->
 <script id="hmdg-consent-defaults" data-cfasync="false" data-no-optimize="1" data-rocket-exclude="true" data-pagespeed-no-defer>
@@ -746,7 +756,7 @@ ADMINCSS;
   'use strict';
   window.dataLayer=window.dataLayer||[];
   window.gtag=window.gtag||function(){window.dataLayer.push(arguments);};
-  var DEBUG=<?php echo $debug; ?>, POLICY_VER='<?php echo $pol_ver; ?>';
+  var DEBUG=<?php echo $debug; ?>, POLICY_VER='<?php echo $pol_ver; ?>', SITE_VER='<?php echo $site_ver; ?>';
   function log(){if(DEBUG){var a=['[HMDG CCM]'].concat(Array.prototype.slice.call(arguments));console.log.apply(console,a);}}
   // v1.3.1: saved consent is restored synchronously below. Keep the denied-state
   // measurement immediate so short visits still produce consent-aware cookieless pings.
@@ -763,6 +773,18 @@ ADMINCSS;
       var c=JSON.parse(decodeURIComponent(raw));
       if(!c||!c.version)return;
       if(c.policyVersion&&c.policyVersion!==POLICY_VER){
+        // v2.0.6: a consent stamped with the bare site version was given under the banner
+        // wording before 2.0.4. Keep it and honour analytics and functional; the three ad
+        // signals stay at their denied default until the visitor chooses under the current text.
+        if(String(c.policyVersion)===SITE_VER){
+          window.gtag('consent','update',{
+            analytics_storage:      c.analytics ?'granted':'denied',
+            functionality_storage:  c.functional?'granted':'denied',
+            personalization_storage:c.functional?'granted':'denied'
+          });
+          log('✅ Earlier consent restored without advertising:',c);
+          return;
+        }
         log('⚠ Policy version changed — clearing consent.');
         document.cookie='<?php echo esc_js($cookie); ?>=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;';
         return;
@@ -840,6 +862,7 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
             'gtagId'                  => $this->opt('gtag_id'),
             'gtmId'                   => $this->opt('gtm_id'),
             'policyVersion'           => self::effective_policy_version( $this->opt('policy_version') ),
+            'sitePolicyVersion'       => self::site_policy_version( $this->opt('policy_version') ),
             'reloadConsent'           => (bool) $this->opt('reload_on_consent'),
             'ga4MeasurementId'        => $this->opt('ga4_measurement_id'),
             // v1.2.0: universal booking config
@@ -1070,6 +1093,7 @@ CSS;
   var EXPIRY     = cfg.cookieExpiry || 180;
   var DEBUG      = !!cfg.debug;
   var POLICY_VER = cfg.policyVersion || '1';
+  var SITE_VER   = cfg.sitePolicyVersion || '1';
   var VERSION    = cfg.version       || '';
   var RELOAD     = !!cfg.reloadConsent;
   var GA4_ID     = cfg.ga4MeasurementId || '';
@@ -1107,8 +1131,24 @@ CSS;
     try { c = JSON.parse(decodeURIComponent(m[1])); } catch(e) { return null; }
     /* v2.0.5: a consent given under another policy version is no consent. The head script
        clears it too; this holds even where an optimiser has removed that script. */
-    if (c && c.policyVersion && c.policyVersion !== POLICY_VER) return null;
+    if (c && c.policyVersion && c.policyVersion !== POLICY_VER) {
+      /* v2.0.6: except one stamped with the bare site version, given under the banner wording
+         before 2.0.4. Return a copy with marketing withheld; the stored cookie is not rewritten,
+         so its expiry is not extended without a choice. */
+      if (String(c.policyVersion) !== SITE_VER) return null;
+      var l = {};
+      for (var k in c) { if (Object.prototype.hasOwnProperty.call(c, k)) l[k] = c[k]; }
+      l.legacyMarketing = !!c.marketing;
+      l.marketing = false;
+      l.legacy = true;
+      return l;
+    }
     return c;
+  }
+  /* v2.0.6: ask when there is no usable consent, or when a pre-2.0.4 consent had allowed
+     marketing, which has to be given again under the current wording. */
+  function needsChoice(saved) {
+    return !saved || !saved.version || (!!saved.legacy && !!saved.legacyMarketing);
   }
   function readRawCookie(name) {
     var esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1555,12 +1595,12 @@ CSS;
     var reopen=el('hmdg-reopen');
     if(reopen) reopen.addEventListener('click',function(){if(readCookie()){openModal();}else{showBanner();}});
     var mc=el('hmdg-modal-close');
-    if(mc) mc.addEventListener('click',function(){closeModal();if(!readCookie())showBanner();});
+    if(mc) mc.addEventListener('click',function(){closeModal();if(needsChoice(readCookie()))showBanner();});
     var mr=el('hmdg-modal-reject'); if(mr) mr.addEventListener('click',doRejectAll);
     var ms=el('hmdg-modal-save');   if(ms) ms.addEventListener('click',doSavePreferences);
     var ma=el('hmdg-modal-accept'); if(ma) ma.addEventListener('click',doAcceptAll);
     var ov=el('hmdg-modal-overlay');
-    if(ov) ov.addEventListener('click',function(e){if(e.target===ov){closeModal();if(!readCookie())showBanner();}});
+    if(ov) ov.addEventListener('click',function(e){if(e.target===ov){closeModal();if(needsChoice(readCookie()))showBanner();}});
     document.querySelectorAll('.hmdg-cat-toggle').forEach(function(btn){
       btn.addEventListener('click',function(){
         var exp  = this.getAttribute('aria-expanded')==='true';
@@ -1579,7 +1619,7 @@ CSS;
     document.addEventListener('keydown',function(e){
       var o=el('hmdg-modal-overlay');
       if(!o||!o.classList.contains('hmdg-open')) return;
-      if(e.key==='Escape'){closeModal();if(!readCookie())showBanner();return;}
+      if(e.key==='Escape'){closeModal();if(needsChoice(readCookie()))showBanner();return;}
       if(e.key!=='Tab') return;
       var modal=document.querySelector('.hmdg-modal'); if(!modal) return;
       var focusable=Array.prototype.slice.call(modal.querySelectorAll('button:not([disabled]),[href],input:not([disabled]),[tabindex]:not([tabindex="-1"])'));
@@ -1599,7 +1639,7 @@ CSS;
     setupPostMessageListener();
     checkReturnRedirect();
     var saved = readCookie();
-    if (!saved || !saved.version) { setTimeout(showBanner, 300); log('ℹ No consent — showing banner.'); }
+    if (needsChoice(saved)) { setTimeout(showBanner, 300); log(saved && saved.legacy ? 'ℹ Earlier consent allowed marketing — asking again.' : 'ℹ No consent — showing banner.'); }
     else { showReopen(); log('✅ Consent on record.', saved); }
     runValidator();
     log('🚀 HMDG CCM v' + VERSION + ' | Universal Booking Tracker | ' + BOOKING_DOMAINS.length + ' domain(s) | ' + PM_MATCHERS.length + ' platform(s)');

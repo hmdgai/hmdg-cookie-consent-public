@@ -30,6 +30,15 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
+### 2.0.6 — Earlier Consents Are Kept
+
+- Consents given under the banner wording before 2.0.4 are no longer discarded. Their
+  analytics and functional choices are honoured.
+- Visitors who had allowed marketing are asked again under the current wording. Until they
+  choose, ads personalisation, ad user data and advertising storage stay denied.
+- Raising a site's Policy Version still asks every visitor again. Consents given under 2.0.4
+  or later are unchanged.
+
 ### 2.0.5 — Visitors Are Asked Again Under the New Wording
 
 - Consents given before the 2.0.4 banner wording are no longer honoured: every visitor sees
