@@ -30,7 +30,7 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
-### 2.0.6.1 — Resync-only cookie disclosures and footer access
+### 2.0.6.2 — Resync-only cookie disclosures and footer access
 
 - The Resync preferences table lists Meta's `_fbp` and `_fbc` advertising cookies and
   OptinMonster's `_omappvp` and `_omappvs` marketing pop-up cookies, matching the

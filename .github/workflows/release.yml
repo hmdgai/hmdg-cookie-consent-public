@@ -296,6 +296,7 @@ jobs:
           #   gh release edit "$TAG" --latest --prerelease=false
           gh release create "$TAG" "$PLUGIN_SLUG.zip" "$PLUGIN_SLUG.zip.sig" \
             --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
             --title "v${VERSION}" \
             --notes-file notes.md \
             --prerelease
