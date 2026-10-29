@@ -30,6 +30,17 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
+### 2.0.6.1 — Resync-only cookie disclosures and footer access
+
+- The Resync preferences table lists Meta's `_fbp` and `_fbc` advertising cookies and
+  OptinMonster's `_omappvp` and `_omappvs` marketing pop-up cookies, matching the
+  site's published Cookie Policy.
+- The Resync footer menu gains Cookie Policy and Cookie settings links. Cookie settings
+  opens the existing preferences modal, so visitors can review or withdraw consent.
+- This branch release is a signed pre-release for direct installation on Resync only.
+  It must not be promoted to GitHub Latest. GTM tag and firing-rule corrections are
+  tracked separately in the private deployment handoff.
+
 ### 2.0.6 — Earlier Consents Are Kept
 
 - Consents given under the banner wording before 2.0.4 are no longer discarded. Their

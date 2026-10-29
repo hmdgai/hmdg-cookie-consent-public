@@ -5,7 +5,7 @@
  * Description:  UK GDPR (PECR) & EU GDPR compliant cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      2.0.6
+ * Version:      2.0.6.1
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '2.0.6' );
+define( 'HMDG_CCM_VERSION', '2.0.6.1' );
 // Revision of the banner's disclosure wording. Raise it when that wording changes, and every
 // stored consent becomes stale. See effective_policy_version(). 2 = v2.0.4 ads-personalisation text.
 define( 'HMDG_CCM_CONSENT_REVISION', '2' );
@@ -241,6 +241,7 @@ final class HMDG_Cookie_Consent {
             add_action( 'wp_head',            [ $this, 'output_google_tag' ],       3 );
             add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ]             );
             add_action( 'wp_footer',          [ $this, 'output_footer' ],           99 );
+            add_filter( 'wp_nav_menu_items',  [ $this, 'append_resync_footer_links' ], 10, 2 );
         }
 
         add_action( 'rest_api_init', [ $this, 'register_rest_endpoints' ] );
@@ -900,6 +901,20 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
         echo $this->get_banner_html();
     }
 
+    /** Add both policy access and a persistent preferences link to Resync's footer menu. */
+    public function append_resync_footer_links( $items, $args ): string {
+        $items = (string) $items;
+        $host  = strtolower( (string) wp_parse_url( home_url( '/' ), PHP_URL_HOST ) );
+        if ( ! in_array( $host, [ 'resyncphysiotherapy.ie', 'www.resyncphysiotherapy.ie' ], true ) ) return $items;
+        // Resync's footer menu contains the privacy page in both its desktop and mobile output.
+        if ( strpos( $items, '/privacy-policy/' ) === false || strpos( $items, 'hmdg-cookie-settings-link' ) !== false ) return $items;
+
+        $policy = esc_url( $this->opts['cookie_policy_url'] ?? '/cookie-policy/' );
+        $items .= '<li class="menu-item hmdg-cookie-policy-menu-item"><a class="elementor-item menu-link" href="' . $policy . '">Cookie Policy</a></li>';
+        $items .= '<li class="menu-item hmdg-cookie-settings-menu-item"><a class="elementor-item menu-link hmdg-cookie-settings-link" href="#hmdg-modal-overlay">Cookie settings</a></li>';
+        return $items;
+    }
+
     /* ==========================================================================
        BANNER HTML — unchanged from v1.1.1
     ========================================================================== */
@@ -970,6 +985,12 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
                 <tr><td><code>_gcl_aw</code></td><td>90 days</td><td>Google Ads — click attribution.</td></tr>
                 <tr><td><code>_gac_*</code></td><td>90 days</td><td>Google Ads — campaign information.</td></tr>
                 <tr><td><code>IDE</code></td><td>1 year</td><td>Google DoubleClick — ad targeting.</td></tr>
+                <tr><th colspan="3" scope="colgroup">Meta advertising</th></tr>
+                <tr><td><code>_fbp</code></td><td>90 days</td><td>Meta — measures visits and advertising results.</td></tr>
+                <tr><td><code>_fbc</code></td><td>90 days</td><td>Meta — records a Facebook or Instagram advert click.</td></tr>
+                <tr><th colspan="3" scope="colgroup">Marketing pop-ups</th></tr>
+                <tr><td><code>_omappvp</code></td><td>Up to 11 years</td><td>OptinMonster — remembers pop-up visits.</td></tr>
+                <tr><td><code>_omappvs</code></td><td>20 minutes</td><td>OptinMonster — remembers a pop-up session.</td></tr>
                 </tbody></table></div></div>
             </div>
             <div class="hmdg-modal-footer">
@@ -1589,6 +1610,12 @@ CSS;
 
   /* ─── Wire events ─────────────────────────────────────────────────────── */
   function wireEvents() {
+    document.addEventListener('click', function(e) {
+      var link=e.target && e.target.closest ? e.target.closest('a.hmdg-cookie-settings-link') : null;
+      if (!link) return;
+      e.preventDefault();
+      openModal();
+    });
     var ba=el('hmdg-btn-accept');    if(ba) ba.addEventListener('click',doAcceptAll);
     var br=el('hmdg-btn-reject');    if(br) br.addEventListener('click',doRejectAll);
     var bc=el('hmdg-btn-customise'); if(bc) bc.addEventListener('click',openModal);
