@@ -5,7 +5,7 @@
  * Description:  UK GDPR (PECR) & EU GDPR compliant cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      2.0.6.3
+ * Version:      2.0.6.4
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '2.0.6.3' );
+define( 'HMDG_CCM_VERSION', '2.0.6.4' );
 // Revision of the banner's disclosure wording. Raise it when that wording changes, and every
 // stored consent becomes stale. See effective_policy_version(). 2 = v2.0.4 ads-personalisation text.
 define( 'HMDG_CCM_CONSENT_REVISION', '2' );
@@ -1270,7 +1270,19 @@ CSS;
       consent_ad_user_data:       signals.ad_user_data,
       consent_ad_personalization: signals.ad_personalization
     });
+    emitResyncGrantedEvents(c);
     log('📡 Consent signals updated:', signals);
+  }
+
+  /* Resync's GTM measurement tags can start on this page after a choice, and
+     its call-tracking tag can start on a returning page with saved consent.
+     Separate event names keep the GTM triggers fail-closed without parsing
+     the consent cookie or changing the shared plugin behaviour elsewhere. */
+  function emitResyncGrantedEvents(c) {
+    if (!/^(www\.)?resyncphysiotherapy\.ie$/i.test(location.hostname) || !c) return;
+    var layer = window.dataLayer = window.dataLayer || [];
+    if (c.analytics === true) layer.push({event:'hmdg_resync_analytics_granted'});
+    if (c.marketing === true) layer.push({event:'hmdg_resync_marketing_granted'});
   }
 
   function buildConsent(o) {
@@ -1694,7 +1706,7 @@ CSS;
     var saved = readCookie();
     clearResyncUnconsentedCookies(needsChoice(saved) ? buildConsent() : saved);
     if (needsChoice(saved)) { setTimeout(showBanner, 300); log(saved && saved.legacy ? 'ℹ Earlier consent allowed marketing — asking again.' : 'ℹ No consent — showing banner.'); }
-    else { showReopen(); log('✅ Consent on record.', saved); }
+    else { showReopen(); emitResyncGrantedEvents(saved); log('✅ Consent on record.', saved); }
     runValidator();
     log('🚀 HMDG CCM v' + VERSION + ' | Universal Booking Tracker | ' + BOOKING_DOMAINS.length + ' domain(s) | ' + PM_MATCHERS.length + ' platform(s)');
   }

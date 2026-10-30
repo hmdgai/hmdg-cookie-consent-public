@@ -30,6 +30,18 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
+### 2.0.6.4 — Resync-only consent grant events for GTM
+
+- On Resync only, the plugin emits separate Analytics and Marketing granted
+  data-layer events when a visitor makes a choice and on later page loads with
+  valid saved consent. GTM can use these events to start the matching tags on
+  the first consented page and to gate Google Ads call tracking on return visits.
+- Denied categories emit no grant event. The existing consent signals, banner,
+  cookie cleanup and behaviour on other sites are unchanged.
+- This signed site-only pre-release supersedes 2.0.6.3. GTM still needs the
+  Resync-specific trigger changes, publication and live verification; installing
+  the plugin alone does not correct the GTM container.
+
 ### 2.0.6.3 — Resync-only cookie cleanup after withdrawal
 
 - On Resync, rejecting or withdrawing a category now expires accessible first-party
