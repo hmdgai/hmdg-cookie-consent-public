@@ -5,7 +5,7 @@
  * Description:  UK GDPR (PECR) & EU GDPR compliant cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      2.0.6.2
+ * Version:      2.0.6.3
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '2.0.6.2' );
+define( 'HMDG_CCM_VERSION', '2.0.6.3' );
 // Revision of the banner's disclosure wording. Raise it when that wording changes, and every
 // stored consent becomes stale. See effective_policy_version(). 2 = v2.0.4 ads-personalisation text.
 define( 'HMDG_CCM_CONSENT_REVISION', '2' );
@@ -1177,6 +1177,32 @@ CSS;
     return m ? decodeURIComponent(m[1]) : null;
   }
 
+  /* Resync-only: expire accessible first-party tracking cookies when a visitor
+     has not allowed their category. Third-party cookies on Facebook/Google
+     domains cannot be removed by this site; GTM must stop those tags firing. */
+  function clearResyncUnconsentedCookies(consent) {
+    var host = location.hostname.toLowerCase();
+    if (host !== 'resyncphysiotherapy.ie' && host !== 'www.resyncphysiotherapy.ie') return;
+    if (consent.analytics && consent.marketing) return;
+
+    var domains = ['', '; domain=' + host];
+    if (host === 'www.resyncphysiotherapy.ie') domains.push('; domain=resyncphysiotherapy.ie');
+    var seen = {};
+    document.cookie.split(';').forEach(function(part) {
+      var name = part.trim().split('=')[0];
+      if (!name || seen[name]) return;
+      seen[name] = true;
+      var analytics = name === '_ga' || name === '_gid' || /^_ga_|^_gat(?:_|$)/.test(name);
+      var marketing = /^_gcl_|^_gac_|^_fbp$|^_fbc$|^_omappvp$|^_omappvs$/.test(name);
+      if ((analytics && !consent.analytics) || (marketing && !consent.marketing)) {
+        domains.forEach(function(domain) {
+          document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; path=/' + domain;
+        });
+        log('Expired unconsented first-party cookie:', name);
+      }
+    });
+  }
+
   /* ─── GA4 cookie parsers ──────────────────────────────────────────────── */
   function getGA4ClientId() {
     var raw = readRawCookie('_ga');
@@ -1283,19 +1309,19 @@ CSS;
   /* ─── Consent actions ─────────────────────────────────────────────────── */
   function doAcceptAll() {
     var c = buildConsent({functional:true,analytics:true,performance:true,marketing:true});
-    writeCookie(c); updateConsent(c); hideBanner(); closeModal(); showReopen();
+    writeCookie(c); updateConsent(c); clearResyncUnconsentedCookies(c); hideBanner(); closeModal(); showReopen();
     console.log('[HMDG CCM] ✅ All cookies accepted. Policy v'+POLICY_VER+' | '+c.consentedAt);
     maybeReload();
   }
   function doRejectAll() {
     var c = buildConsent();
-    writeCookie(c); updateConsent(c); hideBanner(); closeModal(); showReopen();
+    writeCookie(c); updateConsent(c); clearResyncUnconsentedCookies(c); hideBanner(); closeModal(); showReopen();
     console.log('[HMDG CCM] ✅ Only necessary cookies active. Policy v'+POLICY_VER+' | '+c.consentedAt);
     maybeReload();
   }
   function doSavePreferences() {
     var c = buildConsent({functional:isChecked('hmdg-chk-functional'),analytics:isChecked('hmdg-chk-analytics'),performance:isChecked('hmdg-chk-performance'),marketing:isChecked('hmdg-chk-marketing')});
-    writeCookie(c); updateConsent(c); hideBanner(); closeModal(); showReopen();
+    writeCookie(c); updateConsent(c); clearResyncUnconsentedCookies(c); hideBanner(); closeModal(); showReopen();
     console.log('[HMDG CCM] ✅ Preferences saved. Policy v'+POLICY_VER+' | '+c.consentedAt);
     maybeReload();
   }
@@ -1666,6 +1692,7 @@ CSS;
     setupPostMessageListener();
     checkReturnRedirect();
     var saved = readCookie();
+    clearResyncUnconsentedCookies(needsChoice(saved) ? buildConsent() : saved);
     if (needsChoice(saved)) { setTimeout(showBanner, 300); log(saved && saved.legacy ? 'ℹ Earlier consent allowed marketing — asking again.' : 'ℹ No consent — showing banner.'); }
     else { showReopen(); log('✅ Consent on record.', saved); }
     runValidator();

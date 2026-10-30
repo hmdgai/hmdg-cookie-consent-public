@@ -145,6 +145,10 @@ jobs:
             php "$t"
           done
 
+      - name: Verify Resync cookie cleanup
+        if: steps.check.outputs.skip == 'false'
+        run: node tests/resync-cookie-cleanup.cjs
+
       - name: Build the plugin zip
         if: steps.check.outputs.skip == 'false'
         run: |

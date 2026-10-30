@@ -30,6 +30,17 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
+### 2.0.6.3 — Resync-only cookie cleanup after withdrawal
+
+- On Resync, rejecting or withdrawing a category now expires accessible first-party
+  Analytics and Marketing cookies for that category. The same check runs on later
+  page loads, so cookies left by an earlier choice are removed too.
+- The consent cookie, other sites, the banner, booking tracking and consent wording
+  are unchanged. Cookies belonging to Facebook or Google domains cannot be deleted
+  by this WordPress site; their tags still need correct GTM firing rules.
+- This is a signed Resync-only pre-release. Do not promote it to GitHub Latest or
+  install it across the fleet.
+
 ### 2.0.6.2 — Resync-only cookie disclosures and footer access
 
 - The Resync preferences table lists Meta's `_fbp` and `_fbc` advertising cookies and
