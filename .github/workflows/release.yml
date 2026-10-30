@@ -145,6 +145,10 @@ jobs:
             php "$t"
           done
 
+      - name: Check booking linker JavaScript
+        if: steps.check.outputs.skip == 'false'
+        run: node tests/booking-linker.cjs
+
       - name: Build the plugin zip
         if: steps.check.outputs.skip == 'false'
         run: |

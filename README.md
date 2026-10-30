@@ -30,6 +30,12 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
+### 2.0.7 — Remove a booking-link scanner false positive
+
+- The `_gl` helper now uses an invalid example destination instead of a
+  Cliniko-looking placeholder. No request is made to that destination. The
+  consent interface, booking-domain list and URL-decoration flow are unchanged.
+
 ### 2.0.6 — Earlier Consents Are Kept
 
 - Consents given under the banner wording before 2.0.4 are no longer discarded. Their
