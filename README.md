@@ -31,13 +31,28 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Marketing handoff
 
-The [v2.0.9 marketing handoff](docs/marketing-handoff-v2.0.9.md) explains the
+The [v2.0.10 marketing handoff](docs/marketing-handoff-v2.0.10.md) explains the
 shared consent and booking changes, verification steps and the limits of what
 the plugin can establish without GTM/GA4 access.
 
 ---
 
 ## Changelog
+
+### 2.0.10 — Preferences modal actions
+
+- Stacks the preferences-modal actions at every viewport width in matching visual,
+  DOM and keyboard order: Accept All, Save My Preferences, then Reject All.
+- Accept All is the only filled modal action. Save My Preferences and Reject All
+  have transparent backgrounds and dark outlined borders, including on hover
+  and focus. The existing banner actions are unchanged.
+- Each action retains at least a 44px target, and the short-screen modal remains
+  scrollable. Consent choices, policy revision, GTM loading and booking tracking
+  are unchanged.
+- Adds WP Rocket's documented `nowprocket` marker to the consent defaults and
+  controls so they remain immediate when that optimiser processes the page.
+  This does not disable page caching or WP Rocket's site-wide JavaScript delay;
+  sites using that delay must verify first-tap consent behaviour separately.
 
 ### 2.0.9 — Integrate Resync consent behaviour
 

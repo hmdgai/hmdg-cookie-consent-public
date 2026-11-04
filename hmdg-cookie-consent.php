@@ -5,7 +5,7 @@
  * Description:  Cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      2.0.9
+ * Version:      2.0.10
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '2.0.9' );
+define( 'HMDG_CCM_VERSION', '2.0.10' );
 // Revision of the banner's disclosure wording. Raise it when that wording changes, and every
 // stored consent becomes stale. See effective_policy_version(). 2 = v2.0.4 ads-personalisation text.
 define( 'HMDG_CCM_CONSENT_REVISION', '2' );
@@ -771,7 +771,7 @@ ADMINCSS;
     public function autoptimize_excl( string $str ): string   { return $str . ', hmdg-ccm-js'; }
     public function add_script_attributes( string $tag, string $handle ): string {
         if ( $handle === 'hmdg-ccm-js' ) {
-            $tag = str_replace('<script ','<script data-cfasync="false" data-no-optimize="1" data-rocket-exclude="true" data-pagespeed-no-defer ', $tag);
+            $tag = str_replace('<script ','<script data-cfasync="false" data-no-optimize="1" data-rocket-exclude="true" data-nowprocket data-pagespeed-no-defer ', $tag);
         }
         return $tag;
     }
@@ -797,7 +797,7 @@ ADMINCSS;
         $site_ver = esc_js( self::site_policy_version( $this->opt('policy_version') ) );
         ?>
 <!-- HMDG CCM v<?php echo esc_html( HMDG_CCM_VERSION ); ?> | Step 1/3: Consent defaults -->
-<script id="hmdg-consent-defaults" data-cfasync="false" data-no-optimize="1" data-rocket-exclude="true" data-pagespeed-no-defer>
+<script id="hmdg-consent-defaults" data-cfasync="false" data-no-optimize="1" data-rocket-exclude="true" data-nowprocket data-pagespeed-no-defer>
 (function(){
   'use strict';
   window.dataLayer=window.dataLayer||[];
@@ -931,6 +931,7 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
 
         wp_add_inline_script(
             'hmdg-ccm-js',
+            '/* nowprocket: keep consent controls available before the first interaction. */' . "\n" .
             'var hmdgCCM=' . wp_json_encode( $config ) . ';' . "\n" . $this->get_js(),
             'after'
         );
@@ -1051,10 +1052,10 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
                 </tbody></table></div></div>
             </div>
             <div class="hmdg-modal-footer">
-                <div class="hmdg-modal-actions" role="group">
-                    <button type="button" id="hmdg-modal-reject" class="hmdg-btn hmdg-btn-equal">Reject All</button>
-                    <button type="button" id="hmdg-modal-save"   class="hmdg-btn hmdg-btn-outline">Save My Preferences</button>
-                    <button type="button" id="hmdg-modal-accept" class="hmdg-btn hmdg-btn-equal">Accept All</button>
+                <div class="hmdg-modal-actions" role="group" aria-label="Cookie preference actions">
+                    <button type="button" id="hmdg-modal-accept" class="hmdg-btn hmdg-btn-primary">Accept All</button>
+                    <button type="button" id="hmdg-modal-save" class="hmdg-btn hmdg-btn-outline hmdg-btn-decision-outline">Save My Preferences</button>
+                    <button type="button" id="hmdg-modal-reject" class="hmdg-btn hmdg-btn-outline hmdg-btn-decision-outline">Reject All</button>
                 </div>
                 <p class="hmdg-powered">Powered by <strong>HMDG</strong> &nbsp;&bull;&nbsp; <a href="<?php echo $cp; ?>" class="hmdg-link" target="_blank" rel="noopener" style="font-size:11px;">Cookie Policy</a></p>
             </div>
@@ -1084,8 +1085,6 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
 .hmdg-ccm .hmdg-btn:focus-visible{outline:3px solid var(--hmdg-ink) !important;outline-offset:2px !important;}
 .hmdg-ccm .hmdg-btn-primary{background:var(--hmdg-ink) !important;border-color:var(--hmdg-ink) !important;color:#fff !important;}
 .hmdg-ccm .hmdg-btn-primary:hover,.hmdg-ccm .hmdg-btn-primary:focus{background:var(--hmdg-ink-hover) !important;border-color:var(--hmdg-ink-hover) !important;color:#fff !important;}
-.hmdg-ccm .hmdg-btn-equal{background:var(--hmdg-ink) !important;border-color:var(--hmdg-ink) !important;color:#fff !important;}
-.hmdg-ccm .hmdg-btn-equal:hover,.hmdg-ccm .hmdg-btn-equal:focus{background:var(--hmdg-ink-hover) !important;border-color:var(--hmdg-ink-hover) !important;color:#fff !important;}
 .hmdg-ccm .hmdg-btn-outline{background:transparent !important;border-color:#6e7780 !important;color:var(--hmdg-text) !important;}
 .hmdg-ccm .hmdg-btn-outline:hover,.hmdg-ccm .hmdg-btn-outline:focus{background:rgba(0,0,0,.05) !important;}
 .hmdg-ccm .hmdg-btn-decision-outline{border-color:var(--hmdg-ink) !important;color:var(--hmdg-ink) !important;}
@@ -1135,11 +1134,12 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
 .hmdg-toggle input:checked~.hmdg-toggle-track .hmdg-toggle-thumb{transform:translateX(20px) !important;}
 .hmdg-toggle input:focus-visible~.hmdg-toggle-track{outline:3px solid var(--hmdg-primary) !important;outline-offset:2px !important;}
 .hmdg-modal-footer{padding:14px 24px !important;border-top:1px solid var(--hmdg-border) !important;flex-shrink:0 !important;}
-.hmdg-modal-actions{display:flex !important;gap:8px !important;margin-bottom:10px !important;flex-wrap:wrap !important;}
-.hmdg-modal-actions .hmdg-btn{flex:1 !important;min-width:90px !important;}
+.hmdg-modal-actions{display:flex !important;flex-direction:column !important;align-items:stretch !important;gap:8px !important;margin-bottom:10px !important;}
+.hmdg-modal-actions .hmdg-btn{width:100% !important;flex:none !important;min-width:0 !important;}
+.hmdg-ccm .hmdg-modal-actions .hmdg-btn-outline:hover,.hmdg-ccm .hmdg-modal-actions .hmdg-btn-outline:focus{background:transparent !important;border-color:var(--hmdg-ink) !important;color:var(--hmdg-ink) !important;}
 .hmdg-powered{text-align:right !important;font-size:11px !important;color:#555 !important;margin:0 !important;font-family:var(--hmdg-font) !important;}
 .hmdg-powered strong{color:var(--hmdg-ink) !important;}
-@media(max-width:768px){.hmdg-banner-inner{flex-direction:column !important;align-items:flex-start !important;}.hmdg-banner-buttons{width:100% !important;flex-direction:column !important;align-items:stretch !important;}.hmdg-banner-buttons .hmdg-btn{width:100% !important;}.hmdg-modal-actions{flex-direction:column !important;}.hmdg-modal-actions .hmdg-btn{width:100% !important;}.hmdg-cookie-table{font-size:10.5px !important;}.hmdg-cookie-table th,.hmdg-cookie-table td{padding:4px 6px !important;}}
+@media(max-width:768px){.hmdg-banner-inner{flex-direction:column !important;align-items:flex-start !important;}.hmdg-banner-buttons{width:100% !important;flex-direction:column !important;align-items:stretch !important;}.hmdg-banner-buttons .hmdg-btn{width:100% !important;}.hmdg-cookie-table{font-size:10.5px !important;}.hmdg-cookie-table th,.hmdg-cookie-table td{padding:4px 6px !important;}}
 @media(max-width:480px){.hmdg-banner{padding:12px 16px !important;padding-bottom:max(12px,env(safe-area-inset-bottom,0px)) !important;}.hmdg-ccm .hmdg-btn{width:100% !important;min-height:48px !important;}.hmdg-banner-buttons{justify-content:stretch !important;}}
 @media(max-height:700px){.hmdg-modal{display:block !important;overflow-y:auto !important;-webkit-overflow-scrolling:touch !important;}.hmdg-modal-body{overflow:visible !important;flex:none !important;}}
 CSS;
