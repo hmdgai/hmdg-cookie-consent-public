@@ -33,6 +33,22 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Changelog
 
+### 2.0.9 — Integrate Resync consent behaviour
+
+- Includes the v2.0.8 booking measurement, consent-check and banner-button changes.
+- On `resyncphysiotherapy.ie` only, the footer menus include Cookie Policy and
+  Cookie settings links. Cookie settings opens the existing preferences window.
+  The preferences table discloses Meta and OptinMonster cookies used on that site.
+- On Resync only, accessible first-party analytics and marketing cookies are
+  expired after their category is rejected or withdrawn, and on later visits
+  without valid consent. Consent and WordPress login cookies are preserved.
+- On Resync only, Analytics-granted and Marketing-granted data-layer events are
+  sent after a choice and on later visits with valid saved consent. Denied
+  categories send no grant event. GTM still needs the matching published
+  triggers and consent rules; this plugin update does not edit the container.
+- The Resync code is host-gated. Other sites retain their existing cookie
+  disclosures, footer menus and consent events.
+
 ### 2.0.8 — Booking measurement reliability
 
 - Refreshes an expired booking nonce from a same-site endpoint when a cached page is

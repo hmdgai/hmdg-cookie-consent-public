@@ -5,7 +5,7 @@
  * Description:  Cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      2.0.8
+ * Version:      2.0.9
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '2.0.8' );
+define( 'HMDG_CCM_VERSION', '2.0.9' );
 // Revision of the banner's disclosure wording. Raise it when that wording changes, and every
 // stored consent becomes stale. See effective_policy_version(). 2 = v2.0.4 ads-personalisation text.
 define( 'HMDG_CCM_CONSENT_REVISION', '2' );
@@ -241,6 +241,7 @@ final class HMDG_Cookie_Consent {
             add_action( 'wp_head',            [ $this, 'output_google_tag' ],       3 );
             add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ]             );
             add_action( 'wp_footer',          [ $this, 'output_footer' ],           99 );
+            add_filter( 'wp_nav_menu_items',  [ $this, 'append_resync_footer_links' ], 10, 2 );
         }
 
         add_action( 'rest_api_init', [ $this, 'register_rest_endpoints' ] );
@@ -947,6 +948,27 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
         echo $this->get_banner_html();
     }
 
+    /** Keep the Resync footer additions isolated from every other client site. */
+    private function is_resync_site(): bool {
+        $host = strtolower( (string) wp_parse_url( home_url( '/' ), PHP_URL_HOST ) );
+        return in_array( $host, [ 'resyncphysiotherapy.ie', 'www.resyncphysiotherapy.ie' ], true );
+    }
+
+    /** Add policy access and a persistent preferences link to Resync's footer menus. */
+    public function append_resync_footer_links( $items, $args ): string {
+        $items = (string) $items;
+        if ( ! $this->is_resync_site() || strpos( $items, '/privacy-policy/' ) === false ) return $items;
+
+        $policy = esc_url( $this->opts['cookie_policy_url'] ?? '/cookie-policy/' );
+        if ( strpos( $items, '/cookie-policy/' ) === false ) {
+            $items .= '<li class="menu-item hmdg-cookie-policy-menu-item"><a class="elementor-item menu-link" href="' . $policy . '">Cookie Policy</a></li>';
+        }
+        if ( strpos( $items, 'hmdg-cookie-settings-link' ) === false ) {
+            $items .= '<li class="menu-item hmdg-cookie-settings-menu-item"><a class="elementor-item menu-link hmdg-cookie-settings-link" href="#hmdg-modal-overlay">Cookie settings</a></li>';
+        }
+        return $items;
+    }
+
     /* ==========================================================================
        BANNER HTML — unchanged from v1.1.1
     ========================================================================== */
@@ -955,6 +977,7 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
         $cp  = esc_url( $this->opts['cookie_policy_url']   ?? '/cookie-policy/' );
         $tc  = esc_url( $this->opts['terms_url']           ?? '/terms-conditions/' );
         $gs  = esc_url( $this->opts['google_safety_url']   ?? 'https://business.safety.google/privacy/' );
+        $is_resync = $this->is_resync_site();
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M21.598 11.064a1.006 1.006 0 0 0-.854-.172A2.938 2.938 0 0 1 20 11c-1.654 0-3-1.346-3.003-2.937.005-.034.016-.136.017-.17a1 1 0 0 0-1.736-.806A2.967 2.967 0 0 1 13 8c-1.654 0-3-1.346-3-3 0-.085.007-.17.02-.254a1 1 0 0 0-1.562-.888C5.152 5.6 3 8.639 3 12c0 4.971 4.029 9 9 9s9-4.029 9-9c0-.085-.003-.17-.007-.254a1 1 0 0 0-.395-.682z"/><circle cx="9" cy="14" r="1.1"/><circle cx="12" cy="17" r="1.1"/><circle cx="7" cy="17" r="1.1"/><circle cx="15" cy="13" r="1.1"/></svg>';
         ob_start(); ?>
 <!-- HMDG Cookie Consent Mode v2 — v<?php echo esc_html( HMDG_CCM_VERSION ); ?> -->
@@ -1017,6 +1040,14 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
                 <tr><td><code>_gcl_aw</code></td><td>90 days</td><td>Google Ads — click attribution.</td></tr>
                 <tr><td><code>_gac_*</code></td><td>90 days</td><td>Google Ads — campaign information.</td></tr>
                 <tr><td><code>IDE</code></td><td>1 year</td><td>Google DoubleClick — ad targeting.</td></tr>
+                <?php if ( $is_resync ): ?>
+                <tr><th colspan="3" scope="colgroup">Meta advertising</th></tr>
+                <tr><td><code>_fbp</code></td><td>90 days</td><td>Meta — measures visits and advertising results.</td></tr>
+                <tr><td><code>_fbc</code></td><td>90 days</td><td>Meta — records a Facebook or Instagram advert click.</td></tr>
+                <tr><th colspan="3" scope="colgroup">Marketing pop-ups</th></tr>
+                <tr><td><code>_omappvp</code></td><td>Up to 11 years</td><td>OptinMonster — remembers pop-up visits.</td></tr>
+                <tr><td><code>_omappvs</code></td><td>20 minutes</td><td>OptinMonster — remembers a pop-up session.</td></tr>
+                <?php endif; ?>
                 </tbody></table></div></div>
             </div>
             <div class="hmdg-modal-footer">
@@ -1211,6 +1242,31 @@ CSS;
     return m ? decodeURIComponent(m[1]) : null;
   }
 
+  /* Resync only: expire accessible first-party tracking cookies after a category
+     is denied. GTM must still stop the relevant tags and third-party requests. */
+  function clearResyncUnconsentedCookies(consent) {
+    var host = (location.hostname || '').toLowerCase();
+    if (host !== 'resyncphysiotherapy.ie' && host !== 'www.resyncphysiotherapy.ie') return;
+    if (consent.analytics && consent.marketing) return;
+
+    var domains = ['', '; domain=' + host];
+    if (host === 'www.resyncphysiotherapy.ie') domains.push('; domain=resyncphysiotherapy.ie');
+    var seen = {};
+    document.cookie.split(';').forEach(function(part) {
+      var name = part.trim().split('=')[0];
+      if (!name || seen[name]) return;
+      seen[name] = true;
+      var analytics = name === '_ga' || name === '_gid' || /^_ga_|^_gat(?:_|$)/.test(name);
+      var marketing = /^_gcl_|^_gac_|^_fbp$|^_fbc$|^_omappvp$|^_omappvs$/.test(name);
+      if ((analytics && !consent.analytics) || (marketing && !consent.marketing)) {
+        domains.forEach(function(domain) {
+          document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; path=/' + domain;
+        });
+        log('Expired unconsented first-party cookie:', name);
+      }
+    });
+  }
+
   /* ─── GA4 cookie parsers ──────────────────────────────────────────────── */
   function getGA4ClientId() {
     var raw = readRawCookie('_ga');
@@ -1280,7 +1336,17 @@ CSS;
       consent_ad_user_data:       signals.ad_user_data,
       consent_ad_personalization: signals.ad_personalization
     });
+    emitResyncGrantedEvents(c);
     log('📡 Consent signals updated:', signals);
+  }
+
+  /* Resync's GTM can start tags on the consented page and on later visits.
+     Distinct category events let its triggers stay fail-closed. */
+  function emitResyncGrantedEvents(c) {
+    if (!/^(www\.)?resyncphysiotherapy\.ie$/i.test(location.hostname) || !c) return;
+    var layer = window.dataLayer = window.dataLayer || [];
+    if (c.analytics === true) layer.push({event:'hmdg_resync_analytics_granted'});
+    if (c.marketing === true) layer.push({event:'hmdg_resync_marketing_granted'});
   }
 
   function buildConsent(o) {
@@ -1319,19 +1385,19 @@ CSS;
   /* ─── Consent actions ─────────────────────────────────────────────────── */
   function doAcceptAll() {
     var c = buildConsent({functional:true,analytics:true,performance:true,marketing:true});
-    writeCookie(c); updateConsent(c); hideBanner(); closeModal(); showReopen();
+    writeCookie(c); updateConsent(c); clearResyncUnconsentedCookies(c); hideBanner(); closeModal(); showReopen();
     console.log('[HMDG CCM] ✅ All cookies accepted. Policy v'+POLICY_VER+' | '+c.consentedAt);
     maybeReload();
   }
   function doRejectAll() {
     var c = buildConsent();
-    writeCookie(c); updateConsent(c); hideBanner(); closeModal(); showReopen();
+    writeCookie(c); updateConsent(c); clearResyncUnconsentedCookies(c); hideBanner(); closeModal(); showReopen();
     console.log('[HMDG CCM] ✅ Only necessary cookies active. Policy v'+POLICY_VER+' | '+c.consentedAt);
     maybeReload();
   }
   function doSavePreferences() {
     var c = buildConsent({functional:isChecked('hmdg-chk-functional'),analytics:isChecked('hmdg-chk-analytics'),performance:isChecked('hmdg-chk-performance'),marketing:isChecked('hmdg-chk-marketing')});
-    writeCookie(c); updateConsent(c); hideBanner(); closeModal(); showReopen();
+    writeCookie(c); updateConsent(c); clearResyncUnconsentedCookies(c); hideBanner(); closeModal(); showReopen();
     console.log('[HMDG CCM] ✅ Preferences saved. Policy v'+POLICY_VER+' | '+c.consentedAt);
     maybeReload();
   }
@@ -1712,6 +1778,12 @@ CSS;
 
   /* ─── Wire events ─────────────────────────────────────────────────────── */
   function wireEvents() {
+    document.addEventListener('click', function(e) {
+      var link = e.target && e.target.closest ? e.target.closest('a.hmdg-cookie-settings-link') : null;
+      if (!link) return;
+      e.preventDefault();
+      openModal();
+    });
     var ba=el('hmdg-btn-accept');    if(ba) ba.addEventListener('click',doAcceptAll);
     var br=el('hmdg-btn-reject');    if(br) br.addEventListener('click',doRejectAll);
     var bc=el('hmdg-btn-customise'); if(bc) bc.addEventListener('click',openModal);
@@ -1766,8 +1838,9 @@ CSS;
     setupPostMessageListener();
     checkReturnRedirect();
     var saved = readCookie();
+    clearResyncUnconsentedCookies(needsChoice(saved) ? buildConsent() : saved);
     if (needsChoice(saved)) { setTimeout(showBanner, 300); log(saved && saved.legacy ? 'ℹ Earlier consent allowed marketing — asking again.' : 'ℹ No consent — showing banner.'); }
-    else { showReopen(); log('✅ Consent on record.', saved); }
+    else { showReopen(); emitResyncGrantedEvents(saved); log('✅ Consent on record.', saved); }
     runValidator();
     log('🚀 HMDG CCM v' + VERSION + ' | Universal Booking Tracker | ' + BOOKING_DOMAINS.length + ' domain(s) | ' + PM_MATCHERS.length + ' platform(s)');
   }
