@@ -1,8 +1,10 @@
 # HMDG WordPress cookie consent v2.0.10 — marketing handoff
 
-**Status (4 November 2026):** v2.0.10 is under release and site QA. This
-page will be updated with the signed release, WP Engine deployment and cache
-verification results before it is described as complete.
+**Status (4 November 2026):** [v2.0.10 is a signed prerelease](https://github.com/hmdgai/hmdg-cookie-consent-public/releases/tag/v2.0.10).
+Its PHP 7.4, regression, archive and signature checks passed. Canary, WP
+Engine deployment and cache verification are in progress; GitHub Latest
+remains v2.0.6. This page will be updated with verified results before the
+rollout is described as complete.
 
 ## What changed
 
@@ -79,8 +81,14 @@ representative WordPress site:
 
 ## Release and cache evidence
 
-The release identity, signed ZIP hash, canary results, WP Engine install
-count and host-cache checks will be added when verified. Normal WordPress
+The signed release was built from commit
+`4bbfcb48c81800ecf3d4ade19de604ebabd26960` by
+[CI run 41845594952](https://github.com/hmdgai/hmdg-cookie-consent-public/actions/runs/41845594952).
+The 57,040-byte ZIP has SHA-256
+`fa1d6fb03945e1061abbcf556aeb8c7888e0f6872130b12253cef5d67ebab46f`.
+An independent check verified its signature, version and archive contents.
+Canary results, WP Engine install count and host-cache checks will be added
+when verified. Normal WordPress
 page caching remains enabled. Consent choices are read in each visitor's
 browser; only the nonce refresh response is uncached. A deployment check
 must inspect the active plugin version **and** an ordinary public page after
