@@ -31,9 +31,11 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Marketing handoff
 
-The [v2.0.10 marketing handoff](docs/marketing-handoff-v2.0.10.md) explains the
-shared consent and booking changes, verification steps and the limits of what
-the plugin can establish without GTM/GA4 access.
+The [v2.0.12 marketing handoff](docs/marketing-handoff-v2.0.12.md) explains the
+WP Rocket consent interaction and rapid preference Save changes, release and deployment evidence,
+verification steps, and the limits of what the plugin can establish without
+GTM/GA4 access. The [v2.0.10 handoff](docs/marketing-handoff-v2.0.10.md)
+remains available as the previous release record.
 
 ---
 
