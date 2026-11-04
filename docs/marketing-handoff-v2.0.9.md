@@ -1,7 +1,10 @@
 # HMDG WordPress cookie consent v2.0.9 — marketing handoff
 
-**Status:** release candidate, 4 November 2026. This document will be updated with
-the signed release and deployment results before the release is marked Latest.
+**Status (4 November 2026):** [v2.0.9 signed prerelease](https://github.com/hmdgai/hmdg-cookie-consent-public/releases/tag/v2.0.9)
+passed PHP 7.4, regression, archive and signature checks. Ben's Pilates
+passed the first WP Engine canary. The remaining WP Engine rollout is under
+way; Resync and GitHub Latest promotion are pending. This section will be
+updated with final deployment results.
 
 ## Purpose and scope
 
@@ -89,6 +92,25 @@ pixel and a duplicate PageView path. The plugin cannot correct those container
 rules. An authorised GTM editor must review, preview, publish and record the
 live GTM version; an exported JSON file alone is not proof of publication.
 
+## Release identity and current deployment
+
+The release tag points to source commit `6c20b55bd9a9b379141351ccb6948c600abd34c0`.
+The signed ZIP is 56,678 bytes with SHA-256
+`d542f2c32a44919188ea507e745dfe6fb2a94769e8a7ac51531dcf336c2b7c59`.
+An independent check verified the Ed25519 signature, plugin version, archive
+contents and absence of the old Cliniko placeholder.
+
+The Ben's Pilates WP Engine install reports v2.0.9 and its host caches were
+purged. Its ordinary public booking page served HTTP 200 with the v2.0.9
+marker, three Glofox anchors and no old placeholder in an independent browser
+check. Controlled and incoming `_gl` forwarding passed. On mobile WebKit,
+all three banner buttons and the preferences Reject control were reachable.
+A separate command-line request received a Cloudflare 403, so automated
+responses can vary. Natural GTM-generated `_gl`, physical iOS Safari and
+GA4 processing were not established. Resync still requires its v2.0.9
+install and live verification. These facts do not establish any change in
+GA4 or ad-platform reporting.
+
 ## Caching and deployment
 
 Normal WordPress page caching stays enabled. Consent choices are read in the
@@ -100,5 +122,4 @@ canary and fleet checks.
 
 The private operational handoff contains site inventory, install logs and
 rollback steps. It is intentionally not published here because site install
-names are SSH usernames. The release page and deployment outcome will be
-linked here once verified.
+names are SSH usernames. This page will record the final rollout outcome.
