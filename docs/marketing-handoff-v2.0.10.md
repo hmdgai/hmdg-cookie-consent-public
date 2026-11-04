@@ -57,19 +57,26 @@ campaign changes, GTM version and attribution windows.
 
 WP Rocket's **Delay JavaScript Execution** can affect Google tracking and
 first-interaction controls even when the consent script itself is excluded.
-On Disc Chiropractic with v2.0.10, the first choice eventually saved in 8/8
-fresh tests, but the banner took a median **2.247 seconds** to hide after the
-tap, with no immediate feedback. A rapid second tap produced two consent
-updates/events in 4/4 fresh WebKit tests. These are small, site-specific
-samples; they do not establish a fleet-wide marketing-report effect.
+At one WP Engine site, an active v2.0.10 plugin initially served **stale
+v2.0.9 public HTML** from cache. On that old page a first choice eventually
+saved in 8/8 tests, but the banner took a median **2.247 seconds** to hide;
+a rapid second tap produced two consent updates/events in 4/4 WebKit tests.
+Those results must not be attributed to v2.0.10. After an exact-version host
+cache purge, ordinary HTML served v2.0.10 with Rocket delay still active.
+Fresh WebKit checks then measured **2.439 seconds** for first Accept and
+**1.436 seconds** for first Reject, each with one consent update. These are
+small site-specific samples, not a measured fleet-wide reporting effect.
 
-A diagnostic test that bypassed Rocket's delay made the choice respond much
-faster, but on Disc it also allowed a Meta request and `_fbp` cookie **before
-any choice** in 2/2 fresh checks. The responsible site tag or GTM rule has
-not yet been identified. **We will not disable WP Rocket's JavaScript delay
-across the fleet** to speed up the banner while that privacy risk is open.
-A consent-only first-tap and duplicate-event repair is under investigation;
-no such version has been released. Normal page caching stays enabled. Test
+A diagnostic Rocket-delay bypass on the earlier cached page made the choice
+respond much faster, but it also allowed a Meta request and `_fbp` cookie
+**before any choice** in 2/2 fresh checks. On the purged v2.0.10 page,
+Meta traffic and `_fbp` appeared **after Reject** in a fresh WebKit check.
+The responsible site tag or GTM rule has not yet been identified. **We will
+not disable WP Rocket's JavaScript delay across the fleet** to speed up the
+banner while this privacy risk is open.
+A consent-only first-tap and duplicate-event repair is now in the signed
+v2.0.11 prerelease; its live canaries and rollout checks are pending. Normal
+page caching stays enabled. Test
 each site's first consent action and pre/post-choice tag behaviour in a fresh
 mobile session; the site's optimisation settings and published GTM consent
 rules need review together.
