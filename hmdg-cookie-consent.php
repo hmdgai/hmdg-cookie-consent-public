@@ -5,7 +5,7 @@
  * Description:  Cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      2.0.10
+ * Version:      2.0.11
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '2.0.10' );
+define( 'HMDG_CCM_VERSION', '2.0.11' );
 // Revision of the banner's disclosure wording. Raise it when that wording changes, and every
 // stored consent becomes stale. See effective_policy_version(). 2 = v2.0.4 ads-personalisation text.
 define( 'HMDG_CCM_CONSENT_REVISION', '2' );
@@ -1777,35 +1777,96 @@ CSS;
   }
 
   /* ─── Wire events ─────────────────────────────────────────────────────── */
+  var earlyConsentClicks = {};
+  var rocketReplayActive = false;
+  function isSurfaceOpen(id) {
+    var surface = el(id);
+    return !!surface && surface.classList.contains('hmdg-open');
+  }
+  function bannerChoiceAvailable() {
+    return isSurfaceOpen('hmdg-banner') && !isSurfaceOpen('hmdg-modal-overlay');
+  }
+  function modalChoiceAvailable() { return isSurfaceOpen('hmdg-modal-overlay'); }
+  function isReplayedConsentClick(key, e) {
+    /* Rocket redispatches intercepted clicks after its delayed scripts load.
+       A decision closes its surface, so the open-state checks below normally
+       reject the replay. This short window also catches a rapid modal close
+       and reopen before Rocket replays the earlier Customize click. */
+    if (rocketReplayActive && e.isTrusted === false && earlyConsentClicks[key]) return true;
+    earlyConsentClicks[key] = true;
+    return false;
+  }
+  function listenConsentClick(id, available, action) {
+    var control = el(id);
+    if (!control) return;
+    /* isRocket bypasses Rocket's EventTarget listener queue. Browsers without
+       Rocket ignore the unknown option. Keep propagation so Rocket can still
+       start its delayed scripts and preserve the site's existing tag timing. */
+    control.addEventListener('click', function(e) {
+      if (!available(e) || isReplayedConsentClick(id, e)) return;
+      action.call(control, e);
+    }, {isRocket:true});
+  }
   function wireEvents() {
+    if (window.addEventListener) window.addEventListener('rocket-allScriptsLoaded', function() {
+      rocketReplayActive = true;
+      /* Rocket currently replays synchronously after an optional <500 ms
+         touch wait. A timer, rather than a wall-clock deadline, also covers
+         synchronous handlers that block after this notification. */
+      setTimeout(function() { rocketReplayActive = false; earlyConsentClicks = {}; }, 1500);
+    }, {isRocket:true});
     document.addEventListener('click', function(e) {
       var link = e.target && e.target.closest ? e.target.closest('a.hmdg-cookie-settings-link') : null;
       if (!link) return;
       e.preventDefault();
+      if (modalChoiceAvailable() || isReplayedConsentClick('hmdg-cookie-settings-link', e)) return;
       openModal();
+    }, {isRocket:true});
+    listenConsentClick('hmdg-btn-accept', bannerChoiceAvailable, doAcceptAll);
+    listenConsentClick('hmdg-btn-reject', bannerChoiceAvailable, doRejectAll);
+    listenConsentClick('hmdg-btn-customise', bannerChoiceAvailable, openModal);
+    listenConsentClick('hmdg-reopen', function() {
+      return isSurfaceOpen('hmdg-reopen') && !modalChoiceAvailable() && !isSurfaceOpen('hmdg-banner');
+    }, function() { if (readCookie()) openModal(); else showBanner(); });
+    listenConsentClick('hmdg-modal-close', modalChoiceAvailable, function() {
+      closeModal(); if (needsChoice(readCookie())) showBanner();
     });
-    var ba=el('hmdg-btn-accept');    if(ba) ba.addEventListener('click',doAcceptAll);
-    var br=el('hmdg-btn-reject');    if(br) br.addEventListener('click',doRejectAll);
-    var bc=el('hmdg-btn-customise'); if(bc) bc.addEventListener('click',openModal);
-    var reopen=el('hmdg-reopen');
-    if(reopen) reopen.addEventListener('click',function(){if(readCookie()){openModal();}else{showBanner();}});
-    var mc=el('hmdg-modal-close');
-    if(mc) mc.addEventListener('click',function(){closeModal();if(needsChoice(readCookie()))showBanner();});
-    var mr=el('hmdg-modal-reject'); if(mr) mr.addEventListener('click',doRejectAll);
-    var ms=el('hmdg-modal-save');   if(ms) ms.addEventListener('click',doSavePreferences);
-    var ma=el('hmdg-modal-accept'); if(ma) ma.addEventListener('click',doAcceptAll);
-    var ov=el('hmdg-modal-overlay');
-    if(ov) ov.addEventListener('click',function(e){if(e.target===ov){closeModal();if(needsChoice(readCookie()))showBanner();}});
+    listenConsentClick('hmdg-modal-reject', modalChoiceAvailable, doRejectAll);
+    listenConsentClick('hmdg-modal-save', modalChoiceAvailable, doSavePreferences);
+    listenConsentClick('hmdg-modal-accept', modalChoiceAvailable, doAcceptAll);
+    listenConsentClick('hmdg-modal-overlay', function(e) {
+      return modalChoiceAvailable() && e.target === el('hmdg-modal-overlay');
+    }, function() { closeModal(); if (needsChoice(readCookie())) showBanner(); });
+    document.querySelectorAll('#hmdg-modal-overlay .hmdg-toggle').forEach(function(label) {
+      label.addEventListener('click', function(e) {
+        var input = this.querySelector('input[type="checkbox"]');
+        if (!input) return;
+        if (!modalChoiceAvailable()) {
+          if (e.isTrusted === false) e.preventDefault();
+          return;
+        }
+        if (isReplayedConsentClick('checkbox:' + input.id, e)) { e.preventDefault(); return; }
+        /* A normal label/input click keeps native activation. While Rocket
+           is waiting for delayed scripts it cancels that click at window;
+           after cancellation, restore the choice before another user event
+           (including Save). Do not emit extra events before consent. */
+        var desired = e.target === input ? input.checked : !input.checked;
+        setTimeout(function() {
+          if (!e.defaultPrevented) return;
+          input.checked = desired;
+        }, 0);
+      }, {isRocket:true});
+    });
     document.querySelectorAll('.hmdg-cat-toggle').forEach(function(btn){
-      btn.addEventListener('click',function(){
+      btn.addEventListener('click',function(e){
+        if (!modalChoiceAvailable() || isReplayedConsentClick('category:' + this.getAttribute('aria-controls'), e)) return;
         var exp  = this.getAttribute('aria-expanded')==='true';
         var desc = document.getElementById(this.getAttribute('aria-controls'));
         this.setAttribute('aria-expanded',String(!exp));
         if(desc){if(exp)desc.setAttribute('hidden','');else desc.removeAttribute('hidden');}
-      });
+      }, {isRocket:true});
     });
-    var sm=el('hmdg-showmore-btn');
-    if(sm) sm.addEventListener('click',function(){
+    listenConsentClick('hmdg-showmore-btn', modalChoiceAvailable, function(){
       var c=el('hmdg-showmore'); if(!c) return;
       var hidden=c.hasAttribute('hidden');
       if(hidden){c.removeAttribute('hidden');this.textContent='Show less';this.setAttribute('aria-expanded','true');}
@@ -1814,15 +1875,19 @@ CSS;
     document.addEventListener('keydown',function(e){
       var o=el('hmdg-modal-overlay');
       if(!o||!o.classList.contains('hmdg-open')) return;
-      if(e.key==='Escape'){closeModal();if(needsChoice(readCookie()))showBanner();return;}
+      if(e.key==='Escape'){
+        if (isReplayedConsentClick('modal-escape', e)) return;
+        closeModal();if(needsChoice(readCookie()))showBanner();return;
+      }
       if(e.key!=='Tab') return;
+      if (isReplayedConsentClick('modal-tab-' + (e.shiftKey ? 'back' : 'forward'), e)) return;
       var modal=document.querySelector('.hmdg-modal'); if(!modal) return;
       var focusable=Array.prototype.slice.call(modal.querySelectorAll('button:not([disabled]),[href],input:not([disabled]),[tabindex]:not([tabindex="-1"])'));
       if(!focusable.length) return;
       var first=focusable[0], last=focusable[focusable.length-1];
       if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
       else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
-    });
+    }, {isRocket:true});
   }
 
   /* ─── Boot ────────────────────────────────────────────────────────────── */

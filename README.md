@@ -39,6 +39,25 @@ the plugin can establish without GTM/GA4 access.
 
 ## Changelog
 
+### 2.0.11 — WP Rocket consent interaction
+
+- Registers this plugin's consent controls ahead of WP Rocket's delayed event
+  replay, so Accept, Reject, Customise and preference actions can respond to
+  the first genuine click. A replay guard prevents duplicate choices, consent
+  updates and reloads; rapid checkbox choices are retained before Save.
+- WP Rocket Delay JavaScript Execution, normal page caching, Elementor output,
+  other page scripts, stored consent and Consent Mode mapping are unchanged.
+  This does not correct an incorrectly gated GTM, Meta or site tag or guarantee
+  higher marketing report totals.
+- This compatibility path uses WP Rocket's internal `isRocket` listener option
+  and `rocket-allScriptsLoaded` event, which are not a public API. Test the
+  ordinary cached page on a Rocket-enabled canary, including first tap,
+  rapid repeat, mobile keyboard/touch, pre-choice requests and cookie state,
+  before wider deployment. If a future Rocket version changes its replay
+  contract, this fix needs review. An earlier unguarded `isRocket` trial fired
+  twice on replay; this version checks the open consent surface and ignores
+  replayed controls before another consent update can be sent.
+
 ### 2.0.10 — Preferences modal actions
 
 - Stacks the preferences-modal actions at every viewport width in matching visual,
