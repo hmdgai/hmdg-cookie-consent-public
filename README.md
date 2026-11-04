@@ -50,7 +50,7 @@ the plugin can establish without GTM/GA4 access.
   scrollable. Consent choices, policy revision, GTM loading and booking tracking
   are unchanged.
 - Adds WP Rocket's documented `nowprocket` marker to the consent defaults and
-  controls so they remain immediate when that optimiser processes the page.
+  control script so those scripts are excluded from JavaScript delay.
   This does not disable page caching or WP Rocket's site-wide JavaScript delay;
   sites using that delay must verify first-tap consent behaviour separately.
 

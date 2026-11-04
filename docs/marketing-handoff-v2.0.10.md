@@ -90,7 +90,7 @@ An independent check verified its signature, version and archive contents.
 Canary results, WP Engine install count and host-cache checks will be added
 when verified. Normal WordPress
 page caching remains enabled. Consent choices are read in each visitor's
-browser; only the nonce refresh response is uncached. A deployment check
+browser; the nonce refresh endpoint explicitly sends a no-store header. A deployment check
 must inspect the active plugin version **and** an ordinary public page after
 the host cache is purged.
 
