@@ -2,10 +2,10 @@
 /**
  * Plugin Name:  HMDG Cookie Consent Mode v2
  * Plugin URI:   https://hmdg.co.uk
- * Description:  UK GDPR (PECR) & EU GDPR compliant cookie consent banner with Google Consent
+ * Description:  Cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      2.0.7
+ * Version:      2.0.8
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '2.0.7' );
+define( 'HMDG_CCM_VERSION', '2.0.8' );
 // Revision of the banner's disclosure wording. Raise it when that wording changes, and every
 // stored consent becomes stale. See effective_policy_version(). 2 = v2.0.4 ads-personalisation text.
 define( 'HMDG_CCM_CONSENT_REVISION', '2' );
@@ -309,7 +309,9 @@ final class HMDG_Cookie_Consent {
     private function is_valid_origin( WP_REST_Request $request ): bool {
         $origin  = $request->get_header( 'Origin' );
         $referer = $request->get_header( 'Referer' );
-        $site    = trailingslashit( get_site_url() );
+        // REST requests are sent from the public front end. WordPress can be
+        // installed at a different site_url host after a launch or migration.
+        $site    = trailingslashit( home_url() );
 
         // v1.3.0: reject requests with no origin/referer — these are not from our pages.
         // Debug mode no longer bypasses this (prevents accidental exposure in production).
@@ -351,6 +353,27 @@ final class HMDG_Cookie_Consent {
         register_rest_route( 'hmdg-ccm/v1', '/booking-complete', array_merge( $shared_args, [
             'callback' => [ $this, 'handle_booking_complete' ],
         ]));
+
+        register_rest_route( 'hmdg-ccm/v1', '/nonce', [
+            'methods'             => 'GET',
+            'permission_callback' => '__return_true',
+            'callback'            => [ $this, 'handle_mp_nonce' ],
+        ]);
+    }
+
+    /** Refresh the public booking nonce when page HTML outlives its nonce. */
+    public function handle_mp_nonce( WP_REST_Request $request ): WP_REST_Response {
+        if ( ! $this->is_mp_configured() ) {
+            return new WP_REST_Response( [ 'error' => 'MP not configured' ], 404 );
+        }
+        if ( ! $this->is_valid_origin( $request ) ) {
+            return new WP_REST_Response( [ 'error' => 'Invalid origin' ], 403 );
+        }
+        return new WP_REST_Response(
+            [ 'nonce' => wp_create_nonce( 'hmdg_ccm_mp' ) ],
+            200,
+            [ 'Cache-Control' => 'private, no-store, max-age=0' ]
+        );
     }
 
     /**
@@ -424,6 +447,12 @@ final class HMDG_Cookie_Consent {
 
         if ( ! $mp_enabled || empty( $measurement_id ) || empty( $api_secret ) ) {
             return new WP_REST_Response( [ 'error' => 'MP not configured' ], 400 );
+        }
+
+        // A GA cookie can remain after a visitor withdraws consent. Require the
+        // current consent record as well as the existing REST security gate.
+        if ( ! $this->has_analytics_consent() ) {
+            return new WP_REST_Response( [ 'error' => 'Analytics consent required' ], 403 );
         }
 
         $body = $request->get_json_params();
@@ -504,6 +533,22 @@ final class HMDG_Cookie_Consent {
             'queued'   => true,
             'debug'    => $this->opt( 'debug_mode' ) === '1' ? $mp_payload : null,
         ], 200 );
+    }
+
+    private function has_analytics_consent(): bool {
+        $raw = isset( $_COOKIE[ HMDG_CCM_COOKIE ] )
+            ? wp_unslash( $_COOKIE[ HMDG_CCM_COOKIE ] ) : '';
+        $consent = json_decode( $raw, true );
+        if ( ! is_array( $consent ) ) {
+            $consent = json_decode( rawurldecode( $raw ), true );
+        }
+        if ( ! is_array( $consent ) || empty( $consent['version'] ) || empty( $consent['analytics'] ) ) {
+            return false;
+        }
+        $version = (string) ( $consent['policyVersion'] ?? '' );
+        $site_version = self::site_policy_version( $this->opt( 'policy_version' ) );
+        return $version === '' || $version === $site_version
+            || $version === self::effective_policy_version( $this->opt( 'policy_version' ) );
     }
 
     /* ==========================================================================
@@ -870,6 +915,8 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
             'mpBookNowEndpoint'       => rest_url( 'hmdg-ccm/v1/book-now' ),
             'mpCompleteEndpoint'      => rest_url( 'hmdg-ccm/v1/booking-complete' ),
             'mpNonce'                 => wp_create_nonce( 'hmdg_ccm_mp' ),
+            'mpNonceEndpoint'         => rest_url( 'hmdg-ccm/v1/nonce' ),
+            'mpNonceIssuedAt'         => time(),
             'bookingDomains'          => $this->get_all_booking_domains(),
             'decoratorEnabled'        => (bool) ($this->opts['booking_decorator_enabled'] ?? 1),
             'iframeTrackingEnabled'   => (bool) ($this->opts['iframe_tracking_enabled'] ?? 1),
@@ -924,9 +971,9 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
                 </p>
             </div></div>
             <div class="hmdg-banner-buttons" role="group" aria-label="Cookie consent options">
+                <button type="button" id="hmdg-btn-accept"    class="hmdg-btn hmdg-btn-primary">Accept All</button>
                 <button type="button" id="hmdg-btn-customise" class="hmdg-btn hmdg-btn-outline">Customise</button>
-                <button type="button" id="hmdg-btn-reject"    class="hmdg-btn hmdg-btn-equal">Reject All</button>
-                <button type="button" id="hmdg-btn-accept"    class="hmdg-btn hmdg-btn-equal">Accept All</button>
+                <button type="button" id="hmdg-btn-reject"    class="hmdg-btn hmdg-btn-outline hmdg-btn-decision-outline">Reject All</button>
             </div>
         </div>
     </div>
@@ -1004,10 +1051,15 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
 .hmdg-banner-buttons{display:flex !important;gap:6px !important;flex-shrink:0 !important;flex-wrap:wrap !important;align-items:center !important;}
 .hmdg-ccm .hmdg-btn{display:inline-flex !important;align-items:center !important;justify-content:center !important;min-height:44px !important;padding:6px 13px !important;font-family:var(--hmdg-font) !important;font-size:12px !important;font-weight:600 !important;border-radius:var(--hmdg-radius) !important;cursor:pointer !important;transition:all .2s !important;white-space:nowrap !important;line-height:1.4 !important;text-decoration:none !important;border:2px solid transparent !important;-webkit-appearance:none !important;}
 .hmdg-ccm .hmdg-btn:focus-visible{outline:3px solid var(--hmdg-ink) !important;outline-offset:2px !important;}
+.hmdg-ccm .hmdg-btn-primary{background:var(--hmdg-ink) !important;border-color:var(--hmdg-ink) !important;color:#fff !important;}
+.hmdg-ccm .hmdg-btn-primary:hover,.hmdg-ccm .hmdg-btn-primary:focus{background:var(--hmdg-ink-hover) !important;border-color:var(--hmdg-ink-hover) !important;color:#fff !important;}
 .hmdg-ccm .hmdg-btn-equal{background:var(--hmdg-ink) !important;border-color:var(--hmdg-ink) !important;color:#fff !important;}
 .hmdg-ccm .hmdg-btn-equal:hover,.hmdg-ccm .hmdg-btn-equal:focus{background:var(--hmdg-ink-hover) !important;border-color:var(--hmdg-ink-hover) !important;color:#fff !important;}
 .hmdg-ccm .hmdg-btn-outline{background:transparent !important;border-color:#6e7780 !important;color:var(--hmdg-text) !important;}
 .hmdg-ccm .hmdg-btn-outline:hover,.hmdg-ccm .hmdg-btn-outline:focus{background:rgba(0,0,0,.05) !important;}
+.hmdg-ccm .hmdg-btn-decision-outline{border-color:var(--hmdg-ink) !important;color:var(--hmdg-ink) !important;}
+.hmdg-banner-buttons .hmdg-btn-outline:hover,.hmdg-banner-buttons .hmdg-btn-outline:focus{background:transparent !important;border-color:var(--hmdg-ink) !important;color:var(--hmdg-ink) !important;}
+.hmdg-banner-buttons .hmdg-btn-primary,.hmdg-banner-buttons .hmdg-btn-decision-outline{min-width:108px !important;}
 .hmdg-ccm .hmdg-link{color:var(--hmdg-ink) !important;text-decoration:underline !important;text-underline-offset:2px !important;}
 .hmdg-ccm .hmdg-link-btn{background:none !important;border:none !important;padding:0 !important;color:var(--hmdg-ink) !important;font-size:12.5px !important;font-family:var(--hmdg-font) !important;cursor:pointer !important;text-decoration:underline !important;text-underline-offset:2px !important;}
 .hmdg-ccm .hmdg-link:hover,.hmdg-ccm .hmdg-link-btn:hover{text-decoration-thickness:2px !important;}
@@ -1056,7 +1108,7 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
 .hmdg-modal-actions .hmdg-btn{flex:1 !important;min-width:90px !important;}
 .hmdg-powered{text-align:right !important;font-size:11px !important;color:#555 !important;margin:0 !important;font-family:var(--hmdg-font) !important;}
 .hmdg-powered strong{color:var(--hmdg-ink) !important;}
-@media(max-width:768px){.hmdg-banner-inner{flex-direction:column !important;align-items:flex-start !important;}.hmdg-banner-buttons{width:100% !important;justify-content:flex-end !important;}.hmdg-modal-actions{flex-direction:column !important;}.hmdg-modal-actions .hmdg-btn{width:100% !important;}.hmdg-cookie-table{font-size:10.5px !important;}.hmdg-cookie-table th,.hmdg-cookie-table td{padding:4px 6px !important;}}
+@media(max-width:768px){.hmdg-banner-inner{flex-direction:column !important;align-items:flex-start !important;}.hmdg-banner-buttons{width:100% !important;flex-direction:column !important;align-items:stretch !important;}.hmdg-banner-buttons .hmdg-btn{width:100% !important;}.hmdg-modal-actions{flex-direction:column !important;}.hmdg-modal-actions .hmdg-btn{width:100% !important;}.hmdg-cookie-table{font-size:10.5px !important;}.hmdg-cookie-table th,.hmdg-cookie-table td{padding:4px 6px !important;}}
 @media(max-width:480px){.hmdg-banner{padding:12px 16px !important;padding-bottom:max(12px,env(safe-area-inset-bottom,0px)) !important;}.hmdg-ccm .hmdg-btn{width:100% !important;min-height:48px !important;}.hmdg-banner-buttons{justify-content:stretch !important;}}
 @media(max-height:700px){.hmdg-modal{display:block !important;overflow-y:auto !important;-webkit-overflow-scrolling:touch !important;}.hmdg-modal-body{overflow:visible !important;flex:none !important;}}
 CSS;
@@ -1104,6 +1156,9 @@ CSS;
   var MP_BOOK_NOW     = cfg.mpBookNowEndpoint   || '';
   var MP_COMPLETE     = cfg.mpCompleteEndpoint  || '';
   var MP_NONCE        = cfg.mpNonce             || '';
+  var MP_NONCE_ENDPOINT = cfg.mpNonceEndpoint    || '';
+  var MP_NONCE_ISSUED_AT = Number(cfg.mpNonceIssuedAt) || 0;
+  var _nonceRefresh = null;
   var BOOKING_DOMAINS = cfg.bookingDomains      || [];
   var IFRAME_ON       = !!cfg.iframeTrackingEnabled;
   var REDIRECT_ON     = !!cfg.redirectTrackingEnabled;
@@ -1188,6 +1243,8 @@ CSS;
   }
 
   function getStoredGclid() {
+    var consent = readCookie();
+    if (!consent || !consent.version || !consent.marketing) return null;
     var raw = readRawCookie('_gcl_aw');
     if (!raw) return null;
     var p = raw.split('.');
@@ -1280,34 +1337,48 @@ CSS;
   }
 
   /* ─── Booking domain helpers ──────────────────────────────────────────── */
-  function isBookingUrl(href) {
-    if (!href || !BOOKING_DOMAINS.length) return false;
+  function parseBookingUrl(href) {
     try {
-      var h = (href.indexOf('//') === -1) ? new URL('https://' + href) : new URL(href);
-      return BOOKING_DOMAINS.some(function(d) {
-        return h.hostname === d || h.hostname.endsWith('.' + d);
-      });
-    } catch(e) { return false; }
+      if (/^\/\//.test(href)) return new URL(window.location.protocol + href);
+      if (/^https?:\/\//i.test(href)) return new URL(href);
+      if (/^[a-z0-9.-]+\.[a-z]{2,}(?::\d+)?(?:[/?#]|$)/i.test(href)) {
+        return new URL('https://' + href);
+      }
+    } catch(e) {}
+    return null;
   }
 
-  function getLiveGl() {
+  function isBookingUrl(href) {
+    if (!href || !BOOKING_DOMAINS.length) return false;
+    var h = parseBookingUrl(href);
+    return !!h && BOOKING_DOMAINS.some(function(d) {
+      return h.hostname === d || h.hostname.endsWith('.' + d);
+    });
+  }
+
+  function getLiveGl(href) {
+    /* The linker may decorate only configured destination domains. Ask it
+       about the real booking URL and decode _gl once before setting it. */
     try {
       var gtd = window.google_tag_data;
       if (gtd && gtd.gl && typeof gtd.gl.decorateUrl === 'function') {
-        var t = gtd.gl.decorateUrl('https://' + 'example.invalid/');
-        var m = t.match(/[?&]_gl=([^&#]*)/);
-        if (m) return m[1];
+        var decorated = new URL(gtd.gl.decorateUrl(href));
+        var generated = decorated.searchParams.get('_gl');
+        if (generated) return generated;
       }
-      var pm = window.location.search.match(/[?&]_gl=([^&#]*)/);
-      if (pm) return pm[1];
+    } catch(e) {}
+    try {
+      var incoming = new URLSearchParams(window.location.search).get('_gl');
+      if (incoming) return incoming;
     } catch(e) {}
     return null;
   }
 
   function decorateBookingUrl(href) {
     try {
-      var url = new URL(href);
-      var gl  = getLiveGl();
+      var url = parseBookingUrl(href);
+      if (!url) return href;
+      var gl  = getLiveGl(url.toString());
       var gc  = getStoredGclid();
       if (gl) { url.searchParams.set('_gl', gl); log('🔗 _gl decorated'); }
       if (gc && !url.searchParams.has('gclid')) { url.searchParams.set('gclid', gc); log('🔗 gclid decorated'); }
@@ -1320,12 +1391,39 @@ CSS;
     return 'hmdg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
   }
 
+  function refreshMPNonce() {
+    if (!MP_ON || !MP_NONCE_ENDPOINT || typeof fetch !== 'function') return null;
+    if (_nonceRefresh) return _nonceRefresh;
+    var separator = MP_NONCE_ENDPOINT.indexOf('?') === -1 ? '?' : '&';
+    _nonceRefresh = fetch(MP_NONCE_ENDPOINT + separator + 'hmdg_ts=' + Date.now(), {
+      credentials: 'same-origin', cache: 'no-store', referrerPolicy: 'same-origin'
+    }).then(function(r) {
+      if (!r.ok) return null;
+      return r.json();
+    }).then(function(d) {
+      if (!d || !d.nonce) return false;
+      MP_NONCE = d.nonce;
+      MP_NONCE_ISSUED_AT = Math.floor(Date.now() / 1000);
+      return true;
+    }).catch(function() { return false; }).then(function(ok) {
+      _nonceRefresh = null;
+      return ok;
+    });
+    return _nonceRefresh;
+  }
+
   /* ═══════════════════════════════════════════════════════════════════════
      CORE MP FIRING — used by both book_now_click and booking_completed
   ═══════════════════════════════════════════════════════════════════════ */
   function fireMPEvent(endpoint, bookingUrl, platform, eventOverrides) {
     if (!MP_ON || !endpoint || !MP_NONCE) {
       log('ℹ MP tracking not configured — skipping.');
+      return;
+    }
+
+    var consent = readCookie();
+    if (!consent || !consent.version || !consent.analytics) {
+      log('ℹ MP tracking skipped — analytics consent is not current.');
       return;
     }
 
@@ -1353,14 +1451,20 @@ CSS;
     log('📡 Firing MP [' + (endpoint === MP_BOOK_NOW ? 'book_now_click' : 'booking_completed') + '] platform=' + platform + ' client_id=' + clientId);
 
     if (typeof fetch === 'function') {
-      fetch(endpoint, {
+      function post(retry) { return fetch(endpoint, {
         method:    'POST',
         keepalive: true,
         headers: { 'Content-Type': 'application/json', 'X-HMDG-Nonce': MP_NONCE },
         body: JSON.stringify(payload)
-      }).then(function(r){ return r.json(); }).then(function(d){
-        if (d.success) log('✅ MP fired successfully. event=' + d.event + ' platform=' + d.platform);
-        else warn('⚠ MP error:', d.error || 'unknown');
+      }).then(function(r){ return r.json().then(function(d){
+        if (retry && r.status === 403 && d.error === 'Invalid nonce' && MP_NONCE_ENDPOINT) {
+          return refreshMPNonce().then(function(ok){ return ok ? post(false) : d; });
+        }
+        return d;
+      }); }); }
+      post(true).then(function(d){
+        if (d && d.success) log('✅ MP queued. event=' + d.event + ' platform=' + d.platform);
+        else warn('⚠ MP error:', d && d.error || 'unknown');
       }).catch(function(e){ warn('⚠ MP fetch failed:', e.message); });
     } else {
       /* XHR fallback for ancient browsers */
@@ -1429,7 +1533,7 @@ CSS;
         try { originHost = new URL(e.origin).hostname; } catch(oe) { continue; }
         var originValid = domains.length === 0; /* skip check if no domains defined */
         for (var d = 0; d < domains.length; d++) {
-          if (originHost === domains[d] || originHost.indexOf('.' + domains[d]) > -1) {
+          if (originHost === domains[d] || originHost.endsWith('.' + domains[d])) {
             originValid = true; break;
           }
         }
@@ -1489,7 +1593,8 @@ CSS;
   function getPlatformForUrl(href) {
     if (!href) return 'unknown';
     try {
-      var h = new URL(href.indexOf('//') === -1 ? 'https://' + href : href);
+      var h = parseBookingUrl(href);
+      if (!h) return 'unknown';
       for (var i = 0; i < BOOKING_DOMAINS.length; i++) {
         var d = BOOKING_DOMAINS[i];
         if (h.hostname === d || h.hostname.endsWith('.' + d)) {
@@ -1509,18 +1614,36 @@ CSS;
     }
     a.addEventListener('mousedown', decorate, {passive: true});
     a.addEventListener('touchstart', decorate, {passive: true});
+    /* Pen and keyboard/assistive activation can omit both events above. */
+    a.addEventListener('pointerdown', decorate, {passive: true});
+    a.addEventListener('click', decorate);
   }
 
   function attachMPToLink(a) {
     if (a._hmdgMP) return;
     a._hmdgMP = true;
-    /* v1.2.0: use pointerdown — fires earlier than click, before navigation begins */
-    a.addEventListener('pointerdown', function() {
+    /* Pointerdown sends before navigation; click covers keyboard, assistive
+       activation and browsers without Pointer Events. A pointer's subsequent
+       click must not send the same event again. */
+    var lastPointerDown = 0;
+    function send() {
       var href = a.getAttribute('href');
       if (href && isBookingUrl(href)) {
         var platform = getPlatformForUrl(href);
         fireBookNowClick(href, platform);
       }
+    }
+    a.addEventListener('pointerdown', function() {
+      lastPointerDown = Date.now();
+      send();
+    });
+    a.addEventListener('click', function(e) {
+      if (e.detail !== 0 && lastPointerDown && Date.now() - lastPointerDown < 1500) {
+        lastPointerDown = 0;
+        return;
+      }
+      lastPointerDown = 0;
+      send();
     });
   }
 
@@ -1635,6 +1758,10 @@ CSS;
     wireEvents();
     detectDuplicateScripts();
     processAllBookingLinks();
+    /* Cached HTML may contain a nonce older than WordPress's 12–24h window.
+       Refresh it asynchronously before a visitor is likely to book. */
+    if (MP_ON && MP_NONCE_ENDPOINT && (!MP_NONCE_ISSUED_AT ||
+        Date.now() / 1000 - MP_NONCE_ISSUED_AT > 21600)) refreshMPNonce();
     watchForNewBookingLinks();
     setupPostMessageListener();
     checkReturnRedirect();
@@ -1790,7 +1917,7 @@ JS;
                         <div class="card mb-4" style="border-color:#c4b5fd;">
                             <div class="card-header d-flex align-items-center gap-2" style="background:#f5f3ff;"><span style="font-size:16px;">⚡</span><h2>Server-Side Conversion Tracking <span class="badge ms-1" style="background:#ede9fe;color:#5b21b6;font-size:10px;">GA4 Measurement Protocol</span></h2></div>
                             <div class="card-body">
-                                <div class="hmdg-alert-purple mb-3">Fires <code>book_now_click</code> and <code>booking_completed</code> events directly from the WordPress server to Google Analytics, so bookings are still recorded when browser-side tracking is blocked. Analytics consent is still required — these events need the <code>_ga</code> cookie, which only exists once the visitor has accepted analytics.</div>
+                                <div class="hmdg-alert-purple mb-3">Attempts to send <code>book_now_click</code> and <code>booking_completed</code> events through WordPress to Google Analytics when browser-side tracking is blocked. A current analytics consent choice and a readable <code>_ga</code> client ID are required. A booking click does not prove that a booking was completed.</div>
                                 <div class="field-row"><div class="row align-items-start">
                                     <div class="col-sm-4"><label class="form-label" for="mp_tracking_enabled">Enable Server-Side Tracking</label></div>
                                     <div class="col-sm-8"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="mp_tracking_enabled" name="hmdg_ccm_options[mp_tracking_enabled]" value="1" role="switch" <?php checked(1, $o['mp_tracking_enabled'] ?? 1); ?> style="width:40px;height:22px;cursor:pointer;"></div></div>
@@ -1810,7 +1937,7 @@ JS;
                         <div class="card mb-4" style="border-color:#a5f3fc;">
                             <div class="card-header d-flex align-items-center gap-2" style="background:#f0fdff;"><span style="font-size:16px;">🌐</span><h2>Universal Booking Tracker <span class="badge ms-1" style="background:#cffafe;color:#0e7490;font-size:10px;">v1.2.0 — New</span></h2></div>
                             <div class="card-body">
-                                <div class="hmdg-alert-success mb-3">Works with any booking platform — Cliniko, Calendly, Acuity, PracSuite, and more. Fires <code>book_now_click</code> on external link clicks and <code>booking_completed</code> when an iframe booking confirms.</div>
+                                <div class="hmdg-alert-success mb-3">Recognises links to the selected and custom booking domains. With analytics consent and a readable GA4 client ID, it attempts <code>book_now_click</code> on link activation. <code>booking_completed</code> needs a verified platform message or an enabled return redirect; an external link alone does not confirm a booking.</div>
 
                                 <!-- Enabled platforms -->
                                 <div class="field-row">
@@ -1905,10 +2032,10 @@ JS;
                             <div class="info-card mb-3" style="background:#f5f3ff;border-color:#c4b5fd;">
                                 <h3 style="color:#5b21b6;">🌐 v1.2.0 — How booking tracking works</h3>
                                 <ol style="color:#4c1d95;padding-left:18px;font-size:12px;line-height:2.2;">
-                                    <li><strong>External link click:</strong> fires <code>book_now_click</code> via MP immediately on <code>pointerdown</code></li>
-                                    <li><strong>Iframe embed:</strong> listens for platform-specific <code>postMessage</code> → fires <code>booking_completed</code> via MP</li>
-                                    <li><strong>Return redirect:</strong> detects <code>?booking_confirmed</code> param on page load → fires <code>booking_completed</code></li>
-                                    <li>All events carry full <code>client_id</code>, <code>session_id</code>, <code>gclid</code>, and <code>page_referrer</code></li>
+                                    <li><strong>External link activation:</strong> attempts <code>book_now_click</code> via MP on pointer or keyboard/assistive click when analytics consent and a GA4 client ID are available</li>
+                                    <li><strong>Iframe embed:</strong> listens for platform-specific <code>postMessage</code> → may attempt <code>booking_completed</code> via MP</li>
+                                    <li><strong>Return redirect:</strong> when enabled, detects <code>?booking_confirmed</code> on page load → may attempt <code>booking_completed</code></li>
+                                    <li>Events require <code>client_id</code>; <code>session_id</code>, consented <code>gclid</code>, and <code>page_referrer</code> are included when available</li>
                                     <li><code>booking_completed</code> also pushed to GTM <code>dataLayer</code> as <code>hmdg_booking_completed</code></li>
                                 </ol>
                             </div>
@@ -1917,7 +2044,7 @@ JS;
                                 <ul style="color:#7f1d1d;">
                                     <li>Per-IP rate limiting: max <?php echo self::RATE_LIMIT_MAX; ?> requests / <?php echo self::RATE_LIMIT_WINDOW; ?>s</li>
                                     <li>Origin/Referer validation — only same-site requests accepted</li>
-                                    <li>Nonce verification (12-hour validity)</li>
+                                    <li>Nonce verification (normally valid for 12–24 hours); cached pages can refresh it</li>
                                     <li>Payload size guard (max 8KB)</li>
                                     <li>Content-Type guard (must be JSON)</li>
                                     <li><code>client_id</code> format validation (regex)</li>
@@ -1940,11 +2067,11 @@ JS;
                                     <div class="c-green">🌐 Universal Booking Tracker</div>
                                     <div class="c-green">👂 postMessage listener active (9 platforms)</div>
                                     <div class="c-yellow">📡 Firing MP [book_now_click]</div>
-                                    <div class="c-green">✅ MP fired. event=book_now_click</div>
+                                    <div class="c-green">✅ MP queued. event=book_now_click</div>
                                     <div class="c-grey">── on iframe confirm ──</div>
                                     <div class="c-yellow">🎉 postMessage: platform=cliniko</div>
                                     <div class="c-yellow">📡 Firing MP [booking_completed]</div>
-                                    <div class="c-green">✅ MP fired. event=booking_completed</div>
+                                    <div class="c-green">✅ MP queued. event=booking_completed</div>
                                 </div>
                             </div>
                         </div>

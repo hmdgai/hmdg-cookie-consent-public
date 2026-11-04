@@ -14,10 +14,13 @@ const destination = 'https://app.glofox.com/portal/#/branch/example/classes-week
 const calls = [];
 const window = {
   hmdgCCM: { bookingDomains: ['app.glofox.com'] },
-  location: { search: '' },
+  location: { protocol: 'https:', search: '' },
   google_tag_data: { gl: { decorateUrl(url) {
     calls.push(url);
-    return url + '?_gl=generated%2Atoken';
+    if (new URL(url).hostname !== 'app.glofox.com') return url;
+    const decorated = new URL(url);
+    decorated.searchParams.set('_gl', 'generated*token');
+    return decorated.toString();
   } } },
 };
 const document = { readyState: 'loading', addEventListener() {}, cookie: '' };
@@ -27,14 +30,31 @@ vm.runInContext(script, context);
 
 const decorated = new URL(context.bookingUrl(destination));
 assert.equal(calls.length, 1, 'Google linker is called once');
-assert.equal(calls[0], 'https://example.invalid/', 'linker receives an invalid example destination');
-assert.equal(decorated.searchParams.get('_gl'), 'generated%2Atoken', 'generated linker value reaches Glofox URL');
+assert.equal(calls[0], destination, 'linker receives the actual Glofox destination');
+assert.equal(decorated.searchParams.get('_gl'), 'generated*token', 'generated linker value reaches Glofox URL once encoded');
+assert.ok(!decorated.href.includes('%252A'), 'linker value is not encoded twice');
 assert.equal(decorated.hash, new URL(destination).hash, 'Glofox route survives URL decoration');
 
 window.google_tag_data = undefined;
 window.location.search = '?_gl=incoming%2Atoken';
-assert.equal(new URL(context.bookingUrl(destination)).searchParams.get('_gl'), 'incoming%2Atoken', 'incoming linker fallback reaches Glofox URL');
+assert.equal(new URL(context.bookingUrl(destination)).searchParams.get('_gl'), 'incoming*token', 'incoming linker fallback reaches Glofox URL once encoded');
 window.location.search = '';
 assert.equal(new URL(context.bookingUrl(destination)).searchParams.has('_gl'), false, 'no synthetic linker value is added');
 
-console.log('PASS booking linker: invalid placeholder, generated and incoming _gl, Glofox route');
+const accepted = encodeURIComponent(JSON.stringify({
+  version: '1.0', policyVersion: '1', analytics: true, marketing: true,
+}));
+document.cookie = 'hmdg_cookie_consent=' + accepted + '; _gcl_aw=GCL.123.clickid';
+assert.equal(new URL(context.bookingUrl(destination)).searchParams.get('gclid'),
+  'clickid', 'stored ad click ID reaches booking link with marketing consent');
+document.cookie = 'hmdg_cookie_consent=' + encodeURIComponent(JSON.stringify({
+  version: '1.0', policyVersion: '1', analytics: true, marketing: false,
+})) + '; _gcl_aw=GCL.123.clickid';
+assert.equal(new URL(context.bookingUrl(destination)).searchParams.has('gclid'), false,
+  'leftover ad click cookie is not forwarded after marketing rejection');
+
+window.location.search = '?_gl=incoming%2Atoken';
+const protocolRelative = context.bookingUrl('//app.glofox.com/portal/#/branch/example');
+assert.equal(new URL(protocolRelative).searchParams.get('_gl'), 'incoming*token', 'protocol-relative booking link is decorated');
+
+console.log('PASS booking linker: actual domain, _gl encoding, Glofox route, consented gclid');

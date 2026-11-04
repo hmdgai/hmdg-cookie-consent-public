@@ -145,9 +145,11 @@ jobs:
             php "$t"
           done
 
-      - name: Check booking linker JavaScript
+      - name: Check frontend JavaScript
         if: steps.check.outputs.skip == 'false'
-        run: node tests/booking-linker.cjs
+        run: |
+          set -euo pipefail
+          for t in tests/*.cjs; do node "$t"; done
 
       - name: Build the plugin zip
         if: steps.check.outputs.skip == 'false'
@@ -300,6 +302,7 @@ jobs:
           #   gh release edit "$TAG" --latest --prerelease=false
           gh release create "$TAG" "$PLUGIN_SLUG.zip" "$PLUGIN_SLUG.zip.sig" \
             --repo "${{ github.repository }}" \
+            --target "$GITHUB_SHA" \
             --title "v${VERSION}" \
             --notes-file notes.md \
             --prerelease

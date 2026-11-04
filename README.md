@@ -1,6 +1,6 @@
 # HMDG Cookie Consent Mode v2
 
-UK GDPR (PECR) and EU GDPR compliant cookie consent banner for WordPress, built around
+Cookie consent banner for WordPress, designed for UK PECR and EU GDPR, built around
 Google Consent Mode v2, with booking-conversion tracking.
 
 Maintained by [HMDG](https://hmdg.co.uk) for its client sites. This repository exists so
@@ -12,10 +12,13 @@ any issue with HMDG directly.
 
 ## Privacy
 
-The plugin sends no visitor, page, or consent data anywhere. Sites managed by HMDG fetch
-their own tracking configuration (GTM container ID, GA4 measurement ID, GA4 Measurement
-Protocol API secret) from HMDG's configuration service and report back only their own
-configuration state. No credentials or IDs are present in this source code.
+On configured sites the plugin loads the site's Google tag or GTM container and sends
+consent choices to Google Consent Mode. When booking tracking is enabled and the visitor
+has granted analytics consent, the browser sends booking event details to the site's
+WordPress REST endpoint, which forwards them to that site's GA4 property. GTM may also
+load other tags configured by the site. Sites managed by HMDG fetch their tracking IDs
+and server-side GA4 API secret from HMDG's configuration service. No site credentials
+or IDs are committed to this source code.
 
 ## Requirements
 
@@ -29,6 +32,35 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 ---
 
 ## Changelog
+
+### 2.0.8 — Booking measurement reliability
+
+- Refreshes an expired booking nonce from a same-site endpoint when a cached page is
+  older than the nonce, with one retry if the booking request receives an invalid-nonce
+  response. Normal page caching stays enabled.
+- Validates booking REST requests against the public WordPress home URL, so a
+  separate WordPress installation URL does not reject legitimate visitors.
+- Covers keyboard, assistive and pen activation of booking links, while avoiding a
+  second event after a pointer click.
+- Asks Google's linker to decorate the actual booking destination and forwards
+  `_gl` with one URL encoding pass. This avoids losing domain-scoped linker
+  values or breaking Glofox hash routes. Protocol-relative booking links are
+  handled too. Cross-domain attribution still requires the destination to be
+  configured in Google and to accept its linker parameter.
+- Requires a current analytics consent choice before sending a server-side booking
+  event, even if a GA cookie remains after a visitor rejects cookies.
+- Stops forwarding a stored Google Ads click ID to a booking link after the
+  visitor rejects marketing cookies.
+- Accepts iframe booking-completion messages only from an exact trusted
+  booking host or one of its subdomains, preventing lookalike hosts from
+  creating false completion events.
+- Clarifies the admin guidance: an event queued for GA4 is not confirmed
+  delivery, and a booking click is not a completed booking.
+- The banner now uses a filled dark Accept All button and dark outlined Reject
+  All button; Customise remains outlined. At 768px and below the buttons stack
+  Accept All, Customise, Reject All in matching visual and keyboard order.
+  Preferences-modal decision buttons retain their equal filled treatment.
+- Google Consent Mode defaults, disclosure text and GTM loading are unchanged.
 
 ### 2.0.7 — Remove a booking-link scanner false positive
 
