@@ -7,7 +7,15 @@ const vm = require('node:vm');
 const php = fs.readFileSync(path.join(__dirname, '..', 'hmdg-cookie-consent.php'), 'utf8');
 const match = php.match(/return \$banner \. <<<'JS'\r?\n([\s\S]*?)\r?\nJS;/);
 assert.ok(match, 'inline consent JavaScript exists');
-const script = match[1].replace(/\}\)\(\);\s*$/, 'globalThis.cleanup = clearResyncUnconsentedCookies;\nglobalThis.emitGranted = emitResyncGrantedEvents;\n})();');
+const script = match[1].replace(/\}\)\(\);\s*$/, [
+  'globalThis.cleanup = clearResyncUnconsentedCookies;',
+  'globalThis.emitGranted = emitResyncGrantedEvents;',
+  'globalThis.readConsent = readCookie;',
+  // Exercise the real boot path while isolating unrelated page wiring.
+  'wireEvents = detectDuplicateScripts = processAllBookingLinks = watchForNewBookingLinks = setupPostMessageListener = checkReturnRedirect = runValidator = showReopen = function(){};',
+  'globalThis.bootConsent = boot;',
+  '})();',
+].join('\n'));
 
 function browser(host) {
   const jar = new Map();
@@ -30,10 +38,10 @@ function browser(host) {
       }
     },
   };
-  const context = { window: { hmdgCCM: {} }, document, location: { hostname: host, protocol: 'https:' }, console, URL, Date, setTimeout };
+  const context = { window: { hmdgCCM: { policyVersion: '1-r2', sitePolicyVersion: '1' } }, document, location: { hostname: host, protocol: 'https:' }, console, URL, Date, setTimeout() {} };
   vm.createContext(context);
   vm.runInContext(script, context);
-  return { jar, writes, cleanup: context.cleanup, emitGranted: context.emitGranted, events: () => context.window.dataLayer || [] };
+  return { jar, writes, cleanup: context.cleanup, emitGranted: context.emitGranted, readConsent: context.readConsent, bootConsent: context.bootConsent, events: () => context.window.dataLayer || [] };
 }
 
 const site = browser('resyncphysiotherapy.ie');
@@ -75,5 +83,23 @@ assert.equal(site.events().length, 2, 'Marketing grant emits one event');
 assert.equal(site.events()[1].event, 'hmdg_resync_marketing_granted');
 another.emitGranted({ analytics: true, marketing: true });
 assert.equal(another.events().length, 0, 'other sites emit no Resync events');
+
+// Pre-2.0.4 consent retains Analytics but withholds Marketing until a new
+// choice. Resync's boot cleanup and GTM event must follow those effective
+// categories even though the banner is shown again.
+const legacy = browser('resyncphysiotherapy.ie');
+legacy.jar.set('hmdg_cookie_consent', encodeURIComponent(JSON.stringify({
+  version: '1.0', policyVersion: '1', analytics: true, marketing: true,
+})));
+legacy.jar.set('_ga', 'GA1.1.123.456');
+legacy.jar.set('_fbp', 'fb.1.123.456');
+const effective = legacy.readConsent();
+assert.equal(effective.analytics, true, 'legacy Analytics consent is retained');
+assert.equal(effective.marketing, false, 'legacy Marketing consent is withheld');
+legacy.bootConsent();
+assert.equal(legacy.jar.has('_ga'), true, 'boot retains GA cookie for allowed legacy Analytics');
+assert.equal(legacy.jar.has('_fbp'), false, 'boot removes Meta cookie while Marketing is withheld');
+assert.equal(legacy.events().length, 1, 'boot emits only the retained Analytics grant');
+assert.equal(legacy.events()[0].event, 'hmdg_resync_analytics_granted');
 
 console.log('PASS Resync category cleanup, granted events and host isolation');

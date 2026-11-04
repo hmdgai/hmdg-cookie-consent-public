@@ -1838,9 +1838,13 @@ CSS;
     setupPostMessageListener();
     checkReturnRedirect();
     var saved = readCookie();
-    clearResyncUnconsentedCookies(needsChoice(saved) ? buildConsent() : saved);
+    /* A legacy consent can keep Analytics while asking again for Marketing.
+       Clean only categories actually withheld by readCookie(), and let GTM
+       receive the retained Analytics grant on that returning visit. */
+    clearResyncUnconsentedCookies(saved || buildConsent());
+    if (saved) emitResyncGrantedEvents(saved);
     if (needsChoice(saved)) { setTimeout(showBanner, 300); log(saved && saved.legacy ? 'ℹ Earlier consent allowed marketing — asking again.' : 'ℹ No consent — showing banner.'); }
-    else { showReopen(); emitResyncGrantedEvents(saved); log('✅ Consent on record.', saved); }
+    else { showReopen(); log('✅ Consent on record.', saved); }
     runValidator();
     log('🚀 HMDG CCM v' + VERSION + ' | Universal Booking Tracker | ' + BOOKING_DOMAINS.length + ' domain(s) | ' + PM_MATCHERS.length + ' platform(s)');
   }

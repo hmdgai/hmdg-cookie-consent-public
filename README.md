@@ -29,6 +29,12 @@ or IDs are committed to this source code.
 
 GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
+## Marketing handoff
+
+The [v2.0.9 marketing handoff](docs/marketing-handoff-v2.0.9.md) explains the
+consent and booking changes, Resync-only behaviour, verification steps and
+the limits of what the plugin can establish without GTM/GA4 access.
+
 ---
 
 ## Changelog
