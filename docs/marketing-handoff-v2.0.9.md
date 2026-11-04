@@ -3,16 +3,14 @@
 **Status (4 November 2026):** [v2.0.9 signed prerelease](https://github.com/hmdgai/hmdg-cookie-consent-public/releases/tag/v2.0.9)
 passed PHP 7.4, regression, archive and signature checks. Ben's Pilates
 passed the first WP Engine canary. The remaining WP Engine rollout is under
-way; Resync and GitHub Latest promotion are pending. This section will be
-updated with final deployment results.
+way; GitHub Latest promotion is pending. This section will be updated with
+final deployment results.
 
 ## Purpose and scope
 
 This is the WordPress plugin in `hmdgai/hmdg-cookie-consent-public`, not the
-Astro consent implementation. Version 2.0.9 combines the shared v2.0.8
-measurement and banner changes with the Resync Physiotherapy changes that were
-previously on the `Resync-Physiotherapy` branch. The Resync additions are limited
-to `resyncphysiotherapy.ie` and `www.resyncphysiotherapy.ie`.
+Astro consent implementation. This handoff covers the shared measurement,
+booking-link and banner changes released in the v2.0.9 build.
 
 The plugin controls visitor consent, Google Consent Mode v2 signals, eligible
 booking-link attribution and consented booking event delivery. Each site's GTM,
@@ -41,24 +39,10 @@ change a published GTM container or guarantee that reported conversions rise.
   modal retains equal filled Accept All and Reject All controls.
 
 These changes improve the chance of recording *consented* booking activity
-without treating an outbound click as a completed booking. They do not send
-analytics or marketing tags before consent, bypass a visitor's rejection, or
-fill gaps caused by GTM rules, platform configuration, browser blocking or
-GA4 processing.
-
-## Resync-specific changes included in v2.0.9
-
-- The footer includes Cookie Policy and Cookie settings access. Cookie
-  settings opens the preferences modal.
-- The preferences table lists the site's Meta and OptinMonster cookies.
-  Those rows do not appear on other sites solely because this plugin is
-  installed.
-- On rejection or withdrawal, the browser attempts to expire accessible
-  first-party analytics and marketing cookies. It cannot delete cookies on
-  Google or Meta domains; GTM must stop the associated tags.
-- Separate Resync analytics-granted and marketing-granted `dataLayer` events
-  remain available for the site's GTM triggers on a fresh decision and a
-  returning visit with saved consent.
+without treating an outbound click as a completed booking. They do not
+authorise non-essential storage or consented booking events before consent.
+GTM firing rules, platform configuration, browser blocking and GA4 processing
+can still affect reports.
 
 ## Verification for marketing
 
@@ -66,15 +50,15 @@ For a representative WordPress site, use a fresh browser profile and GTM
 Preview/Tag Assistant, then check all of the following:
 
 1. Before any choice, analytics and advertising storage remain denied.
-   Identify every GA4, Google Ads, Meta and OptinMonster tag that fires. A
+   Identify every GA4, Google Ads and Meta tag that fires. A
    plugin update does not itself pause tags configured to fire on All Pages.
 2. Reject All: no non-essential tag should write a first-party cookie or send
    its normal measurement request. The preferences link must remain available.
 3. Accept All and custom category choices: verify that only the allowed tag
    categories start, and that GTM sees the corresponding consent update.
-4. Withdraw consent: confirm later requests stop and accessible first-party
-   cookies are cleared where supported. Use a fresh profile for the next
-   baseline; third-party cookies cannot be deleted by this site.
+4. Withdraw consent: confirm later non-essential requests stop. Existing
+   third-party cookies cannot be deleted by this site. Use a fresh browser
+   profile for the next baseline.
 5. With analytics consent, click a real booking link using mouse, keyboard and
    mobile touch. Inspect the destination URL for a correctly encoded `_gl`
    when Google generates one, and compare the site's GA4 DebugView and booking
@@ -84,13 +68,6 @@ Preview/Tag Assistant, then check all of the following:
    campaign traffic, GTM version, Ads/Meta attribution windows and GA4
    processing delay. Record site, page, date/time, browser, consent choice and
    expected versus observed tag/event for each discrepancy.
-
-For **Resync**, also confirm the correct Meta pixel `759761409057804` is the
-only intended pixel and determine the owner of old ID `160905805509476` before
-removing any campaign-dependent tag. The earlier GTM export showed the old
-pixel and a duplicate PageView path. The plugin cannot correct those container
-rules. An authorised GTM editor must review, preview, publish and record the
-live GTM version; an exported JSON file alone is not proof of publication.
 
 ## Release identity and current deployment
 
@@ -107,9 +84,8 @@ check. Controlled and incoming `_gl` forwarding passed. On mobile WebKit,
 all three banner buttons and the preferences Reject control were reachable.
 A separate command-line request received a Cloudflare 403, so automated
 responses can vary. Natural GTM-generated `_gl`, physical iOS Safari and
-GA4 processing were not established. Resync still requires its v2.0.9
-install and live verification. These facts do not establish any change in
-GA4 or ad-platform reporting.
+GA4 processing were not established. These facts do not establish any change
+in GA4 or ad-platform reporting.
 
 ## Caching and deployment
 
