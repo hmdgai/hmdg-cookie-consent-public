@@ -39,6 +39,23 @@ the plugin can establish without GTM/GA4 access.
 
 ## Changelog
 
+### 2.0.12 — rapid preference Save on WP Rocket pages
+
+- Records a preference-checkbox choice when the visitor taps it, so Save My
+  Preferences uses the intended value even if WebKit delivers Save before a
+  cancelled checkbox click has been restored by the browser task timer. This
+  follows a live v2.0.11 canary where rapid Customise → Analytics → Save
+  stored Analytics off in four of five fresh mobile WebKit runs.
+- Handles a repeated checkbox tap before the timer, normal label-to-input
+  forwarding and keyboard activation. Timers from a closed preferences window
+  cannot change a newly opened window. No synthetic input/change events are
+  emitted, and the stored consent policy revision is unchanged.
+- WP Rocket Delay JavaScript Execution and page caching stay enabled; this
+  does not change GTM, Meta or other site tags. Verify the ordinary cached
+  page on a signed canary before fleet deployment, especially rapid Save,
+  replay deduplication and pre-choice requests. The v2.0.11 compatibility
+  path still relies on WP Rocket's undocumented event hooks.
+
 ### 2.0.11 — WP Rocket consent interaction
 
 - Registers this plugin's consent controls ahead of WP Rocket's delayed event

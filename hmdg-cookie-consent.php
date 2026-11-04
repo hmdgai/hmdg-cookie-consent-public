@@ -5,7 +5,7 @@
  * Description:  Cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      2.0.11
+ * Version:      2.0.12
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '2.0.11' );
+define( 'HMDG_CCM_VERSION', '2.0.12' );
 // Revision of the banner's disclosure wording. Raise it when that wording changes, and every
 // stored consent becomes stale. See effective_policy_version(). 2 = v2.0.4 ads-personalisation text.
 define( 'HMDG_CCM_CONSENT_REVISION', '2' );
@@ -1360,7 +1360,15 @@ CSS;
 
   /* ─── Element helpers ─────────────────────────────────────────────────── */
   function el(id)        { return document.getElementById(id); }
-  function isChecked(id) { var e = el(id); return e ? e.checked : false; }
+  function isChecked(id) {
+    /* Rocket can cancel native checkbox activation at window after Save has
+       already been tapped. The target listener records the intended value
+       synchronously, so Save does not depend on the later restoration timer. */
+    if (Object.prototype.hasOwnProperty.call(pendingCheckboxChoices, id)) {
+      return pendingCheckboxChoices[id].desired;
+    }
+    var e = el(id); return e ? e.checked : false;
+  }
   function setCheck(id,v){ var e = el(id); if(e) e.checked = !!v; }
 
   /* ─── Banner / Modal ──────────────────────────────────────────────────── */
@@ -1368,6 +1376,8 @@ CSS;
   function hideBanner() { var b=el('hmdg-banner'); if(b) b.classList.remove('hmdg-open'); }
   function showReopen() { var r=el('hmdg-reopen'); if(r) r.classList.add('hmdg-open'); }
   function openModal() {
+    modalGeneration++;
+    pendingCheckboxChoices = {};
     var saved = readCookie();
     if (saved) { setCheck('hmdg-chk-functional',saved.functional); setCheck('hmdg-chk-analytics',saved.analytics); setCheck('hmdg-chk-performance',saved.performance); setCheck('hmdg-chk-marketing',saved.marketing); }
     else { ['functional','analytics','performance','marketing'].forEach(function(k){ setCheck('hmdg-chk-'+k, false); }); }
@@ -1376,6 +1386,8 @@ CSS;
     setTimeout(function(){ var c=el('hmdg-modal-close'); if(c)c.focus(); }, 60);
   }
   function closeModal() {
+    modalGeneration++;
+    pendingCheckboxChoices = {};
     var o = el('hmdg-modal-overlay'); if(!o) return;
     var active = document.activeElement; if(active && o.contains(active)) active.blur();
     o.classList.remove('hmdg-open'); document.body.style.overflow = '';
@@ -1779,6 +1791,8 @@ CSS;
   /* ─── Wire events ─────────────────────────────────────────────────────── */
   var earlyConsentClicks = {};
   var rocketReplayActive = false;
+  var modalGeneration = 0;
+  var pendingCheckboxChoices = {};
   function isSurfaceOpen(id) {
     var surface = el(id);
     return !!surface && surface.classList.contains('hmdg-open');
@@ -1838,6 +1852,7 @@ CSS;
       return modalChoiceAvailable() && e.target === el('hmdg-modal-overlay');
     }, function() { closeModal(); if (needsChoice(readCookie())) showBanner(); });
     document.querySelectorAll('#hmdg-modal-overlay .hmdg-toggle').forEach(function(label) {
+      var forwardedLabelChoice = null;
       label.addEventListener('click', function(e) {
         var input = this.querySelector('input[type="checkbox"]');
         if (!input) return;
@@ -1846,14 +1861,32 @@ CSS;
           return;
         }
         if (isReplayedConsentClick('checkbox:' + input.id, e)) { e.preventDefault(); return; }
-        /* A normal label/input click keeps native activation. While Rocket
-           is waiting for delayed scripts it cancels that click at window;
-           after cancellation, restore the choice before another user event
-           (including Save). Do not emit extra events before consent. */
-        var desired = e.target === input ? input.checked : !input.checked;
+        /* A label click may forward a second native click to its input. That
+           click follows within the same activation (same timestamp in WebKit
+           and Chromium; a few ms later in Firefox). A later direct tap must
+           still count even if the restoration timer has not run. */
+        if (e.target === input && forwardedLabelChoice &&
+            forwardedLabelChoice.generation === modalGeneration &&
+            e.timeStamp - forwardedLabelChoice.timeStamp >= 0 &&
+            e.timeStamp - forwardedLabelChoice.timeStamp < 10 &&
+            input.checked === forwardedLabelChoice.desired) return;
+        var previous = pendingCheckboxChoices[input.id];
+        var desired = previous && previous.generation === modalGeneration
+          ? !previous.desired
+          : (e.target === input ? input.checked : !input.checked);
+        var choice = {desired: desired, generation: modalGeneration,
+          timeStamp: e.timeStamp};
+        pendingCheckboxChoices[input.id] = choice;
+        if (e.target !== input) forwardedLabelChoice = choice;
+        /* Rocket cancels native activation later at window. Save can read the
+           pending choice even before this task runs. An obsolete timer must
+           never overwrite a later toggle or a newly opened modal. */
         setTimeout(function() {
-          if (!e.defaultPrevented) return;
-          input.checked = desired;
+          if (forwardedLabelChoice === choice) forwardedLabelChoice = null;
+          if (modalGeneration !== choice.generation ||
+              pendingCheckboxChoices[input.id] !== choice) return;
+          if (e.defaultPrevented) input.checked = choice.desired;
+          delete pendingCheckboxChoices[input.id];
         }, 0);
       }, {isRocket:true});
     });

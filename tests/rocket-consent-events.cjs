@@ -15,6 +15,7 @@ function makePage(rocketOn, reloadConsent = false) {
   const userEvents = new Set(['click', 'keydown', 'keyup', 'input', 'touchstart', 'touchend']);
   let rocketReady = !rocketOn;
   let reloads = 0;
+  let eventClock = 0;
   let replayGuardTimer = null;
   const nextTask = [];
   const jar = new Map();
@@ -29,6 +30,7 @@ function makePage(rocketOn, reloadConsent = false) {
       this.key = init.key || '';
       this.shiftKey = !!init.shiftKey;
       this.detail = init.detail || 0;
+      this.timeStamp = init.timeStamp || 0;
       this.defaultPrevented = false;
     }
     preventDefault() { this.defaultPrevented = true; }
@@ -169,16 +171,20 @@ function makePage(rocketOn, reloadConsent = false) {
   vm.createContext(context);
   vm.runInContext(match[1], context);
 
-  async function click(target, isTrusted = true, detail = 1) {
+  function flushTasks() {
+    for (const fn of nextTask.splice(0)) fn();
+  }
+  async function click(target, isTrusted = true, detail = 1, flushTimers = true, forwardedTimeStamp) {
     const old = target.tagName === 'INPUT' ? target.checked : null;
     if (old !== null) target.checked = !old; // native checkbox pre-activation
-    const event = new FakeEvent('click', {target, isTrusted, detail});
+    const timeStamp = forwardedTimeStamp === undefined ? ++eventClock * 25 : forwardedTimeStamp;
+    const event = new FakeEvent('click', {target, isTrusted, detail, timeStamp});
     target.dispatchEvent(event);
     if (old !== null && event.defaultPrevented) target.checked = old;
     if (target.tagName === 'SPAN' && !event.defaultPrevented) {
-      await click(target.parent.input, isTrusted, detail); // native label forwarding
+      await click(target.parent.input, isTrusted, detail, false, timeStamp); // native label forwarding
     }
-    for (const fn of nextTask.splice(0)) fn();
+    if (flushTimers) flushTasks();
     await Promise.resolve();
     return event;
   }
@@ -209,7 +215,7 @@ function makePage(rocketOn, reloadConsent = false) {
   function grantEvents(name) {
     return win.dataLayer.filter(item => item.event === name);
   }
-  return {click, key, replay, consent, updates, grantEvents, savedEvents, queued,
+  return {click, key, replay, flushTasks, consent, updates, grantEvents, savedEvents, queued,
     get reloads() { return reloads; },
     doc, banner, accept, reject, customise, reopen, overlay, close, modalAccept,
     modalReject, save, showMore, moreContent, category, categoryDescription,
@@ -271,6 +277,60 @@ function makePage(rocketOn, reloadConsent = false) {
   {
     const p = makePage(true);
     await p.click(p.customise);
+    await p.click(p.labels[1].span, true, 1, false);
+    assert.equal(p.inputs.analytics.checked, false, 'Rocket cancels native checkbox before its restore timer');
+    await p.click(p.save, true, 1, false);
+    assert.equal(p.consent().analytics, true, 'Save uses the synchronous intended choice before timer');
+    assert.equal(p.updates().length, 1);
+    p.flushTasks();
+    await p.replay();
+    assert.equal(p.updates().length, 1, 'rapid Save and replay still yield one update');
+    await p.click(p.reopen);
+    assert.equal(p.inputs.analytics.checked, true, 'reopen reflects the stored choice');
+  }
+  {
+    const p = makePage(true);
+    await p.click(p.customise);
+    await p.click(p.labels[1].span, true, 1, false);
+    await p.click(p.labels[1].span, true, 1, false);
+    await p.click(p.save, true, 1, false);
+    assert.equal(p.consent().analytics, false, 'two rapid taps before timers leave Analytics off');
+    p.flushTasks();
+  }
+  {
+    const p = makePage(true);
+    await p.click(p.customise);
+    await p.click(p.labels[1].span, true, 1, false);
+    await p.click(p.inputs.analytics, true, 1, false);
+    await p.click(p.save, true, 1, false);
+    assert.equal(p.consent().analytics, false,
+      'a second direct input tap before the timer is not label forwarding');
+    p.flushTasks();
+  }
+  {
+    const p = makePage(true);
+    await p.click(p.customise);
+    p.key(p.inputs.performance, ' ');
+    await p.click(p.inputs.performance, true, 0, false);
+    await p.click(p.save, true, 1, false);
+    assert.equal(p.consent().performance, true, 'keyboard Space input activation survives immediate Save');
+    p.flushTasks();
+  }
+  {
+    const p = makePage(true);
+    await p.click(p.customise);
+    await p.click(p.labels[1].span, true, 1, false);
+    await p.click(p.close, true, 1, false);
+    await p.click(p.customise, true, 1, false);
+    p.flushTasks();
+    assert.equal(p.inputs.analytics.checked, false, 'old checkbox timer cannot affect a reopened modal');
+    await p.click(p.labels[1].span);
+    await p.click(p.save);
+    assert.equal(p.consent().analytics, true, 'later deliberate preference remains available');
+  }
+  {
+    const p = makePage(true);
+    await p.click(p.customise);
     p.doc.activeElement = p.modalReject;
     const tab = p.key(p.modalReject, 'Tab');
     assert.equal(tab.defaultPrevented, true, 'Tab wraps at the modal end');
@@ -321,11 +381,12 @@ function makePage(rocketOn, reloadConsent = false) {
   {
     const p = makePage(false);
     await p.click(p.customise);
-    await p.click(p.labels[1].span);
+    await p.click(p.labels[1].span, true, 1, false);
     assert.equal(p.inputs.analytics.checked, true, 'normal browser keeps native label activation');
-    await p.click(p.save);
+    await p.click(p.save, true, 1, false);
     assert.equal(p.consent().analytics, true);
     assert.equal(p.updates().length, 1);
+    p.flushTasks();
   }
   console.log('PASS Rocket consent events: first click, rapid modal choice, replay, keyboard, normal browser');
 })().catch(error => { console.error(error); process.exitCode = 1; });
