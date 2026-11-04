@@ -1,10 +1,14 @@
 # HMDG WordPress cookie consent v2.0.10 — marketing handoff
 
-**Status (4 November 2026):** [v2.0.10 is a signed prerelease](https://github.com/hmdgai/hmdg-cookie-consent-public/releases/tag/v2.0.10).
-Its PHP 7.4, regression, archive and signature checks passed. Canary, WP
-Engine deployment and cache verification are in progress; GitHub Latest
-remains v2.0.6. This page will be updated with verified results before the
-rollout is described as complete.
+**Status (4 November 2026, 22:48 Manila time):**
+[v2.0.10 is a signed prerelease](https://github.com/hmdgai/hmdg-cookie-consent-public/releases/tag/v2.0.10).
+Its PHP 7.4, regression, archive and signature checks passed. The first WP
+Engine canary passed its plugin-version, host-cache, ordinary booking-page and
+browser checks. The latest recorded tally across **274 eligible WP Engine
+installs** is **73 on v2.0.10, 88 on v2.0.9 and 113 on v2.0.7**. One current
+batch was still pending at this snapshot. This is a partial rollout, not a
+completed fleet or a 274-site cache/public-page verification. GitHub Latest
+remains v2.0.6; the v2.0.10 prerelease has not been promoted.
 
 ## What changed
 
@@ -53,11 +57,22 @@ campaign changes, GTM version and attribution windows.
 
 WP Rocket's **Delay JavaScript Execution** can affect Google tracking and
 first-interaction controls even when the consent script itself is excluded.
-The plugin does not need WP Rocket or Elementor caching to run, and normal
-page caching stays enabled. On a site using JavaScript delay, test the first
-tap of every consent action in a fresh mobile session and check that Google
-and non-Google tags respect the visitor's choice. Review the site's
-optimisation settings and GTM consent rules together before changing them.
+On Disc Chiropractic with v2.0.10, the first choice eventually saved in 8/8
+fresh tests, but the banner took a median **2.247 seconds** to hide after the
+tap, with no immediate feedback. A rapid second tap produced two consent
+updates/events in 4/4 fresh WebKit tests. These are small, site-specific
+samples; they do not establish a fleet-wide marketing-report effect.
+
+A diagnostic test that bypassed Rocket's delay made the choice respond much
+faster, but on Disc it also allowed a Meta request and `_fbp` cookie **before
+any choice** in 2/2 fresh checks. The responsible site tag or GTM rule has
+not yet been identified. **We will not disable WP Rocket's JavaScript delay
+across the fleet** to speed up the banner while that privacy risk is open.
+A consent-only first-tap and duplicate-event repair is under investigation;
+no such version has been released. Normal page caching stays enabled. Test
+each site's first consent action and pre/post-choice tag behaviour in a fresh
+mobile session; the site's optimisation settings and published GTM consent
+rules need review together.
 
 ## Verification steps for marketing
 
@@ -87,12 +102,18 @@ The signed release was built from commit
 The 57,040-byte ZIP has SHA-256
 `fa1d6fb03945e1061abbcf556aeb8c7888e0f6872130b12253cef5d67ebab46f`.
 An independent check verified its signature, version and archive contents.
-Canary results, WP Engine install count and host-cache checks will be added
-when verified. Normal WordPress
-page caching remains enabled. Consent choices are read in each visitor's
-browser; the nonce refresh endpoint explicitly sends a no-store header. A deployment check
-must inspect the active plugin version **and** an ordinary public page after
-the host cache is purged.
+The initial WP Engine canary passed an independent plugin header check, an
+object/Varnish/network/Page Speed Boost purge, an ordinary public booking
+page and mobile Chromium/WebKit consent checks. Its controlled incoming
+`_gl` forwarding passed; natural GTM-generated `_gl`, downstream GA4
+acceptance, physical iOS Safari and marketing-report uplift were not proven.
+The **73/88/113** version tally above remains a 22:48 partial snapshot; the
+current batch, exact-version cache purges and wider public-page checks still
+need reconciliation. Normal WordPress page caching remains enabled. Consent
+choices are read in each visitor's browser; only the separate nonce refresh
+response explicitly sends a no-store header. A deployment check must inspect
+the active plugin version **and** an ordinary public page after the host
+cache is purged.
 
 The private operational handoff contains the client install list, SSH
 details, deployment logs and recovery procedure. It is deliberately not
