@@ -1,16 +1,18 @@
 # HMDG WordPress cookie consent v2.0.12 — marketing handoff
 
-> **Draft for final release verification, 5 November 2026.**
+> **WP Engine release verification completed, 5 November 2026.**
 > [v2.0.12 is a signed prerelease](https://github.com/hmdgai/hmdg-cookie-consent-public/releases/tag/v2.0.12),
 > and two signed WP Engine canaries passed their exact-version, cache,
 > first-choice, rapid-Save and tested privacy checks. The approved WP Engine
 > install ledger now records 275 signed v2.0.12 install results with no skips
-> or failures. An independent 275-site active-version sweep and the main
-> fleet cache/public-page checks are still pending. This release is scoped
-> to WP Engine. GitHub Latest deliberately
-> stays on v2.0.6 so Flywheel-managed sites do not receive an automatic update.
-> Do not forward this as a completion announcement until the result ledger
-> below is filled with verified evidence.
+> or failures. An independent sweep confirmed all 275 active canonical installs
+> have matching v2.0.12 file headers and WordPress versions. All 274 main-cohort
+> WP Engine full-cache purges passed; the additional site passed its separate
+> purge. Ordinary public-page checks found 96 v2.0.12 markers, 41 pages with
+> no plugin marker, and one live domain served by Flywheel at v2.0.6. One of
+> the no-marker pages also has a Flywheel server header.
+> This release is scoped to WP Engine. GitHub Latest deliberately stays on
+> v2.0.6 so Flywheel-managed sites do not receive an automatic update.
 
 At the pause before this release, the provisional WP Engine version ledger
 for **274 eligible installs** showed **81 on v2.0.10, 80 on v2.0.9 and 113 on
@@ -28,8 +30,21 @@ outside the original 274; the other 24 remained unreachable. The expanded
 reachable active WP Engine cohort is **275**. That separate late target also
 has a signed v2.0.12 install result, independent active header, host-cache
 purge and ordinary public-page check. The combined **275 signed install
-results** do not replace the independent final 275-site active-version sweep
-or the main fleet cache/public-page reconciliation, which remain pending.
+results** were independently reconciled against all 275 active canonical
+plugin folders. The separate check found four expected plugin files at each
+install and matching v2.0.12 file-header and WordPress versions throughout.
+The main 274-site cache purge passed with zero failures between
+05:59:37 and 06:13:27 UTC on 5 November 2026. In the 138 mapped ordinary
+public-page checks at 06:13:49–06:14:11 UTC, all pages returned HTTP 200: 96 showed
+v2.0.12 without the old fake booking URL, 41 showed no plugin marker, and
+one live domain routed to Flywheel and showed its older release and the
+old placeholder. The 41 no-marker pages are exactly the same set seen in the
+earlier public baseline; one of these pages also has a Flywheel server
+header. Their installed WP Engine copies passed the active-version audit,
+but the absence of a public marker cannot establish a page's plugin version
+or why output is absent. Among mapped pages exposing a marker, the only
+older marker was on the separately hosted Flywheel page. The separately
+added site is included among the 96 v2.0.12 public markers.
 
 ## What changed
 
@@ -51,8 +66,8 @@ input or change events. The consent policy revision, stored-choice format,
 Google Consent Mode mapping, booking tracker, button design and copy are
 unchanged.
 
-The plugin leaves **WP Rocket Delay JavaScript Execution enabled** for other
-site scripts. Normal page caching and Elementor output remain enabled and
+The plugin does not disable a site's **WP Rocket Delay JavaScript Execution**
+setting for other scripts. Normal page caching and Elementor output remain enabled and
 unchanged. The consent interaction still relies on WP Rocket's internal
 listener/replay behaviour, which is not a documented public API. A later WP
 Rocket update may require this path to be reviewed again.
@@ -61,9 +76,9 @@ Rocket update may require this path to be reviewed again.
 
 In the two tested canaries, first cookie choices and rapid preference Save
 stored the visitor's intended choice, and Rocket replay did not create
-duplicate consent updates. At the wider fleet level, this can
-reduce **missed or duplicate consented events** caused by the interaction
-fault. It does not send marketing tags after Reject, change a visitor's
+duplicate consent updates. At the wider fleet level, this may reduce
+**missed or duplicate consent updates** that affect later consented measurement.
+It does not send marketing tags after Reject, change a visitor's
 choice, guarantee an increase in GA4 or advertising reports, or prove that
 Google accepted a booking event. The earlier booking nonce, origin, linker
 and consent checks remain in the plugin; v2.0.12 does not add a new booking
@@ -171,7 +186,7 @@ audit, a physical iPhone test, downstream GA4 acceptance or proof of a
 marketing-report improvement. The first canary's separate Meta-after-Reject
 tag fault still needs its site owner.
 
-## Deployment result ledger — final fleet checks pending
+## Deployment result ledger — WP Engine checks complete
 
 | Gate | Current status |
 |---|---|
@@ -179,8 +194,8 @@ tag fault still needs its site owner.
 | First WP Rocket canary: exact header, purge, ordinary page, first choice, rapid Save, replay | Passed within the tested samples above; separate site-tag fault remains |
 | Second WP Rocket privacy canary: exact header, purge, cached page, no choice, Reject and rapid Save | Passed within the tested samples above |
 | Signed WP Engine install results | Original cohort: 272/272 bounded batch results, plus two passed canaries, equals 274/274; zero skips or failures. One separate late signed update makes 275 results across the expanded reachable active cohort. |
-| Independent active plugin versions | The separate late target passed an independent v2.0.12 file-header check. A final independent 275-site active and version sweep remains pending. |
-| Host-cache purge and ordinary public-page checks | Both canaries and the separate late target passed scoped host purges and ordinary public-page checks. Main fleet purge/public reconciliation remains pending. Public pages must be reported separately from active plugin file headers: an HTTP 200 page may have no plugin marker when tag output is unconfigured, and a live domain may route to a different host. Do not describe every mapped page as serving v2.0.12 merely because its WP Engine install has that header. |
+| Independent active plugin versions | Passed: 275/275 unique reachable installs have one active canonical folder, four expected files, and matching v2.0.12 file-header and WordPress versions. All 11 first-pass anomalies were resolved by targeted read-only checks. |
+| Host-cache purge and ordinary public-page checks | Passed: 274/274 unique main-cohort WP Engine full-cache purges at exact v2.0.12, zero failures, plus the additional site's separate purge. In 138 mapped ordinary public-page checks, 138 returned HTTP 200; 96 showed v2.0.12 with no old fake URL, 41 showed no marker (the same set as the earlier baseline, including one Flywheel-served page), and one other Flywheel-served page remained on v2.0.6 with the old placeholder. Among pages exposing a marker, the only older marker was on the separately hosted Flywheel page. A missing public marker cannot establish that page's plugin version or why output is absent. |
 | GitHub Latest and Flywheel-managed sites | Latest deliberately remains v2.0.6 during this WP Engine-only release. Flywheel rollout and any Latest promotion are a separate stage. |
 | Physical iOS Safari, published GTM corrections, GA4 acceptance and reporting change | Not established by this plugin release |
 
