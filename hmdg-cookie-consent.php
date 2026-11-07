@@ -1307,6 +1307,25 @@ CSS;
     return p.length >= 3 ? p.slice(2).join('.') : null;
   }
 
+  /* v2.0.13: Google click IDs from the address the visitor arrived on, for booking links only.
+     Used while no choice has been made (the banner is still pending) or Marketing is granted;
+     never after a choice that withholds Marketing. Nothing is stored or read from the device
+     beyond the consent cookie. A repeated key uses its first value; malformed values are dropped. */
+  var CLICK_ID_KEYS = ['gclid', 'gbraid', 'wbraid'];
+  var CLICK_ID_RE   = /^[A-Za-z0-9_-]{1,512}$/;
+  function getUrlClickIds() {
+    var ids = {};
+    var saved = readCookie();
+    if (!needsChoice(saved) && !saved.marketing) return ids;
+    var q;
+    try { q = new URLSearchParams(window.location.search || ''); } catch(e) { return ids; }
+    for (var i = 0; i < CLICK_ID_KEYS.length; i++) {
+      var v = q.get(CLICK_ID_KEYS[i]);
+      if (v && CLICK_ID_RE.test(v)) ids[CLICK_ID_KEYS[i]] = v;
+    }
+    return ids;
+  }
+
   /* ─── gtag helpers ────────────────────────────────────────────────────── */
   function ensureGtag() {
     window.dataLayer = window.dataLayer || [];
@@ -1454,12 +1473,18 @@ CSS;
 
   function decorateBookingUrl(href) {
     try {
+      /* v2.0.13: click IDs go to registered booking hosts only, whoever calls this. */
+      if (!isBookingUrl(href)) return href;
       var url = parseBookingUrl(href);
       if (!url) return href;
       var gl  = getLiveGl(url.toString());
-      var gc  = getStoredGclid();
+      var ids = getUrlClickIds();
+      var gc  = ids.gclid || getStoredGclid();
       if (gl) { url.searchParams.set('_gl', gl); log('🔗 _gl decorated'); }
       if (gc && !url.searchParams.has('gclid')) { url.searchParams.set('gclid', gc); log('🔗 gclid decorated'); }
+      if (ids.gbraid && !url.searchParams.has('gbraid')) url.searchParams.set('gbraid', ids.gbraid);
+      if (ids.wbraid && !url.searchParams.has('wbraid')) url.searchParams.set('wbraid', ids.wbraid);
+      if (ids.gclid || ids.gbraid || ids.wbraid) log('🔗 click id forwarded from URL');
       return url.toString();
     } catch(e) { return href; }
   }
@@ -2151,7 +2176,7 @@ JS;
                                 <div class="field-row"><div class="row align-items-start">
                                     <div class="col-sm-4"><label class="form-label">Features</label></div>
                                     <div class="col-sm-8">
-                                        <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="booking_decorator_enabled" name="hmdg_ccm_options[booking_decorator_enabled]" value="1" role="switch" <?php checked(1, $o['booking_decorator_enabled'] ?? 1); ?> style="width:40px;height:22px;cursor:pointer;"><label class="form-check-label ms-2 form-label mb-0" for="booking_decorator_enabled">Append <code>_gl</code> + <code>gclid</code> to booking links at click time</label></div>
+                                        <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="booking_decorator_enabled" name="hmdg_ccm_options[booking_decorator_enabled]" value="1" role="switch" <?php checked(1, $o['booking_decorator_enabled'] ?? 1); ?> style="width:40px;height:22px;cursor:pointer;"><label class="form-check-label ms-2 form-label mb-0" for="booking_decorator_enabled">Append Google click IDs (<code>gclid</code>, <code>gbraid</code>, <code>wbraid</code>) and <code>_gl</code> to booking links at click time</label></div>
                                         <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="iframe_tracking_enabled" name="hmdg_ccm_options[iframe_tracking_enabled]" value="1" role="switch" <?php checked(1, $o['iframe_tracking_enabled'] ?? 1); ?> style="width:40px;height:22px;cursor:pointer;"><label class="form-check-label ms-2 form-label mb-0" for="iframe_tracking_enabled">Listen for iframe postMessage booking completion (fires <code>booking_completed</code>)</label></div>
                                         <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="redirect_tracking_enabled" name="hmdg_ccm_options[redirect_tracking_enabled]" value="1" role="switch" <?php checked(1, $o['redirect_tracking_enabled'] ?? 0); ?> style="width:40px;height:22px;cursor:pointer;"><label class="form-check-label ms-2 form-label mb-0" for="redirect_tracking_enabled">Detect return-redirect booking completion via URL parameter</label></div>
                                     </div>
