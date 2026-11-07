@@ -18,6 +18,7 @@ function add_filter() { return true; }
 function register_activation_hook() {}
 function register_deactivation_hook() {}
 function get_option( $name, $default = false ) { return $GLOBALS['options'][ $name ] ?? $default; }
+function update_option( $name, $value = null, $autoload = null ) { $GLOBALS['options'][ $name ] = $value; return true; }
 function wp_parse_args( $args, $defaults = [] ) { return array_merge( $defaults, (array) $args ); }
 function register_rest_route( $namespace, $route, $args ) {
     $GLOBALS['routes'][ $namespace . $route ] = $args;

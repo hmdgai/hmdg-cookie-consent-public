@@ -10,6 +10,7 @@ function add_filter( $hook, $cb, $priority = 10, $args = 1 ) { return true; }
 function register_activation_hook() {}
 function register_deactivation_hook() {}
 function get_option( $name, $default = false ) { return $default; }
+function update_option( $name, $value = null, $autoload = null ) { return true; }
 function wp_parse_args( $a, $defaults = [] ) { return array_merge( $defaults, (array) $a ); }
 function home_url( $path = '' ) { return 'https://example.test' . $path; }
 function wp_parse_url( $url, $component = -1 ) { return parse_url( $url, $component ); }

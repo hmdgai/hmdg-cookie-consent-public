@@ -43,7 +43,8 @@ final class HMDG_Cookie_Consent {
      *   postmessage  — JS expression that returns true when the iframe message
      *                  means "booking completed". Evaluated as a JS function body
      *                  receiving (data) — the raw e.data value.
-     *   msg_type     — 'string' | 'object' (how postMessage data arrives)
+     *   msg_type     — 'string' | 'object' (how postMessage data arrives), or 'none' when the
+     *                  completion message is unknown and postmessage is 'false'
      */
     private const PLATFORM_REGISTRY = [
         'cliniko' => [
@@ -60,7 +61,7 @@ final class HMDG_Cookie_Consent {
         ],
         'acuity' => [
             'label'       => 'Acuity Scheduling',
-            'domains'     => ['acuityscheduling.com', 'squarespace.com'],
+            'domains'     => ['acuityscheduling.com', 'squarespace.com', 'as.me'],
             'postmessage' => "typeof data==='string'&&data.indexOf('bookedAppointment')>-1",
             'msg_type'    => 'string',
         ],
@@ -101,7 +102,43 @@ final class HMDG_Cookie_Consent {
             'postmessage' => "data&&typeof data==='object'&&(data.event==='booking_complete'||data.status==='complete')",
             'msg_type'    => 'object',
         ],
+        /* v2.0.13: booking systems whose pages run the clinic's own Google tag, found in the
+           7 Nov 2026 fleet probe. Their completion messages are unknown, so 'false' never fires:
+           these entries decorate booking links and count Book Now clicks only. */
+        'practicehub' => [
+            'label'       => 'PracticeHub',
+            'domains'     => ['practicehub.io'],
+            'postmessage' => 'false',
+            'msg_type'    => 'none',
+        ],
+        'tm3' => [
+            'label'       => 'TM3',
+            'domains'     => ['tm3app.com'],
+            'postmessage' => 'false',
+            'msg_type'    => 'none',
+        ],
+        'nookal' => [
+            'label'       => 'Nookal',
+            'domains'     => ['nookal.com'],
+            'postmessage' => 'false',
+            'msg_type'    => 'none',
+        ],
+        'gensolve' => [
+            'label'       => 'Gensolve',
+            'domains'     => ['gensolve.com'],
+            'postmessage' => 'false',
+            'msg_type'    => 'none',
+        ],
+        'zanda' => [
+            'label'       => 'Zanda (Power Diary)',
+            'domains'     => ['zandahealth.com', 'powerdiary.com'],
+            'postmessage' => 'false',
+            'msg_type'    => 'none',
+        ],
     ];
+
+    /* Registry keys that existed before platform offers were recorded (pre-2.0.13). */
+    private const PLATFORMS_BEFORE_2_0_13 = ['cliniko','calendly','acuity','pracsuite','phorest','youcanbook','jane','timely','simplybook'];
 
     /* ── Rate limiting ──────────────────────────────────────────────────────
      * Max MP requests per IP per window.
@@ -118,6 +155,7 @@ final class HMDG_Cookie_Consent {
     }
 
     private function __construct() {
+        self::migrate_new_platforms();
         $this->opts = wp_parse_args( (array) get_option( 'hmdg_ccm_options', [] ), self::defaults() );
 
         /*
@@ -156,7 +194,7 @@ final class HMDG_Cookie_Consent {
             'iframe_tracking_enabled'    => 1,                      // listen for postMessage completion
             'redirect_tracking_enabled'  => 0,                      // catch return-redirect ?booking_confirmed
             'redirect_param'             => 'booking_confirmed',    // query param to watch for
-            'enabled_platforms'          => 'cliniko,calendly,acuity,pracsuite,phorest,youcanbook,jane,timely,simplybook',
+            'enabled_platforms'          => 'cliniko,calendly,acuity,pracsuite,phorest,youcanbook,jane,timely,simplybook,practicehub,tm3,nookal,gensolve,zanda',
             // Legacy Cliniko-specific kept for back-compat
             'cliniko_domains'            => 'cliniko.com',
             'cliniko_decorator_enabled'  => 1,
@@ -198,6 +236,27 @@ final class HMDG_Cookie_Consent {
         } else {
             update_option( self::OPT_MP_SECRET, $value );
         }
+    }
+
+    /** v2.0.13: switch on, once per site, each booking platform added to the registry since the
+     *  site last saw it. A site's saved enabled_platforms list overrides the defaults, so new
+     *  registry entries would otherwise never reach it. Offered keys are recorded in their own
+     *  option because saving the settings page rebuilds the settings blob; a platform an admin
+     *  later turns off is therefore never switched back on. */
+    public static function migrate_new_platforms(): void {
+        $all  = array_keys( self::PLATFORM_REGISTRY );
+        $seen = get_option( 'hmdg_ccm_platforms_offered', false );
+        if ( ! is_array( $seen ) ) $seen = self::PLATFORMS_BEFORE_2_0_13;
+        $new  = array_values( array_diff( $all, $seen ) );
+        if ( ! $new ) return;
+
+        $settings = get_option( 'hmdg_ccm_options', false );
+        if ( is_array( $settings ) && isset( $settings['enabled_platforms'] ) ) {
+            $enabled = array_filter( array_map( 'trim', explode( ',', (string) $settings['enabled_platforms'] ) ) );
+            $settings['enabled_platforms'] = implode( ',', array_values( array_unique( array_merge( $enabled, $new ) ) ) );
+            update_option( 'hmdg_ccm_options', $settings );
+        }
+        update_option( 'hmdg_ccm_platforms_offered', array_values( array_unique( array_merge( $seen, $new ) ) ) );
     }
 
     /** Move a pre-1.7.0 secret out of the settings blob. Runs on every load,
