@@ -253,8 +253,11 @@ final class HMDG_Cookie_Consent {
         $settings = get_option( 'hmdg_ccm_options', false );
         if ( is_array( $settings ) && isset( $settings['enabled_platforms'] ) ) {
             $enabled = array_filter( array_map( 'trim', explode( ',', (string) $settings['enabled_platforms'] ) ) );
-            $settings['enabled_platforms'] = implode( ',', array_values( array_unique( array_merge( $enabled, $new ) ) ) );
-            update_option( 'hmdg_ccm_options', $settings );
+            /* An empty list means an admin unticked every platform: leave it empty. */
+            if ( $enabled ) {
+                $settings['enabled_platforms'] = implode( ',', array_values( array_unique( array_merge( $enabled, $new ) ) ) );
+                update_option( 'hmdg_ccm_options', $settings );
+            }
         }
         update_option( 'hmdg_ccm_platforms_offered', array_values( array_unique( array_merge( $seen, $new ) ) ) );
     }

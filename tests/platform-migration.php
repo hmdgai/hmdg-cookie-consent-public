@@ -105,6 +105,14 @@ HMDG_Cookie_Consent::migrate_new_platforms();
 check( 'original platforms an admin removed stay removed', ! in_array( 'calendly', $plats(), true ) );
 check( 'new platforms still offered once', ! array_diff( $added, $plats() ) );
 
+/* -- admin had unticked every platform: keep it that way ------------------- */
+
+$GLOBALS['__options'] = [ SETTINGS_OPT => [ 'enabled_platforms' => '' ] ];
+HMDG_Cookie_Consent::migrate_new_platforms();
+check( 'empty platform list stays empty', get_option( SETTINGS_OPT )['enabled_platforms'] === '' );
+check( 'empty platform list: new platforms still recorded as offered',
+	! array_diff( $added, (array) get_option( SEEN_OPT, [] ) ) );
+
 /* -- saved settings without the key: defaults already include them -------- */
 
 $GLOBALS['__options'] = [ SETTINGS_OPT => [ 'gtm_id' => 'GTM-X' ] ];
