@@ -89,4 +89,18 @@ search('?gclid=STALE'); cookie('hmdg_cookie_consent=' + encodeURIComponent(JSON.
 })));
 eq(url(B).searchParams.get('gclid'), 'STALE', 'consent under an old policy version is treated as no choice');
 
+// UK Jane: the registry's Jane domains must match janeapp.co.uk booking links
+const janeEntry = php.match(/'jane'\s*=>\s*\[[\s\S]*?'domains'\s*=>\s*\[([^\]]*)\]/);
+assert.ok(janeEntry, 'Jane registry entry exists');
+const janeDomains = [...janeEntry[1].matchAll(/'([^']+)'/g)].map(m => m[1]);
+const janeWindow = { hmdgCCM: { bookingDomains: janeDomains }, location: { protocol: 'https:', search: '?gclid=Cj0KCQ_abc-1' }, google_tag_data: undefined };
+const janeDocument = { readyState: 'loading', addEventListener() {}, cookie: '' };
+const janeContext = { window: janeWindow, document: janeDocument, location: { protocol: 'https:' }, URL, URLSearchParams, console, setTimeout };
+vm.createContext(janeContext);
+vm.runInContext(script, janeContext);
+const janeLink = new URL(janeContext.bookingUrl('https://clinic.janeapp.co.uk/#/staff_member/1'));
+eq(janeLink.searchParams.get('gclid'), 'Cj0KCQ_abc-1', 'UK Jane booking link gets the URL gclid');
+eq(janeLink.hash, '#/staff_member/1', 'Jane route kept');
+eq(janeContext.bookingUrl('https://janeapp.co.uk.attacker.test/'), 'https://janeapp.co.uk.attacker.test/', 'lookalike Jane host untouched');
+
 console.log('PASS booking click id: URL ids forwarded while undecided or granted, validated, never overwritten, not after Reject All');

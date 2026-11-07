@@ -85,7 +85,7 @@ final class HMDG_Cookie_Consent {
         ],
         'jane' => [
             'label'       => 'Jane App',
-            'domains'     => ['jane.app', 'janeapp.com'],
+            'domains'     => ['jane.app', 'janeapp.com', 'janeapp.co.uk'],
             'postmessage' => "data&&typeof data==='object'&&data.event==='janeBookingCompleted'",
             'msg_type'    => 'object',
         ],
