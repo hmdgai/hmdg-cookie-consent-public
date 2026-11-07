@@ -31,15 +31,33 @@ GPL v2 or later — <https://www.gnu.org/licenses/gpl-2.0.html>
 
 ## Marketing handoff
 
-The [v2.0.12 marketing handoff](docs/marketing-handoff-v2.0.12.md) explains the
-WP Rocket consent interaction and rapid preference Save changes, release and deployment evidence,
-verification steps, and the limits of what the plugin can establish without
-GTM/GA4 access. The [v2.0.10 handoff](docs/marketing-handoff-v2.0.10.md)
+The [v2.0.13 marketing handoff](docs/marketing-handoff-v2.0.13.md) explains the
+booking click-ID forwarding and UK Jane changes, what they can and cannot recover,
+and how to verify them. The [v2.0.12 handoff](docs/marketing-handoff-v2.0.12.md)
 remains available as the previous release record.
 
 ---
 
 ## Changelog
+
+### 2.0.13 — booking click IDs for visitors who have not chosen
+
+- Booking links now carry the Google click ID (`gclid`, `gbraid`, `wbraid`)
+  from the page address at click time, so an ad visitor who has not answered
+  the banner reaches Cliniko or Jane with it. The booking platform's own tag
+  can then attribute the booking if the patient consents there. Before this,
+  the plugin forwarded only the click ID stored in Google's ad cookie, which
+  exists only after Accept.
+- Not forwarded after a choice that withholds Marketing (Reject All or
+  Marketing off). Values must be letters, digits, `_` or `-`, at most 512
+  characters; anything else is dropped. Parameters already on the link are
+  never overwritten. Only registered booking hosts are decorated.
+- Adds `janeapp.co.uk` to the Jane booking domains. UK Jane links were never
+  decorated, counted as Book Now clicks or accepted for iframe completion.
+- No change to Consent Mode defaults, the consent revision (nobody is asked
+  again), cookies, caching or internal links. The plugin still does not set
+  `url_passthrough`; Google's own passthrough in GTM carries the click ID
+  between pages of the site but never to the booking domain.
 
 ### 2.0.12 — rapid preference Save on WP Rocket pages
 
