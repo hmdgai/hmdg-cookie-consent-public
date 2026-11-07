@@ -1711,9 +1711,17 @@ CSS;
   function attachDecoratorToLink(a) {
     if (a._hmdgDecorated) return;
     a._hmdgDecorated = true;
+    /* v2.0.13: decorate from the link's own href on every event, so a click ID added while the
+       banner was pending is removed again once a choice withholds Marketing. A href changed by
+       another script since our last write becomes the new base. */
     function decorate() {
       var href = a.getAttribute('href');
-      if (href && isBookingUrl(href)) a.setAttribute('href', decorateBookingUrl(href));
+      if (!href) return;
+      if (href !== a._hmdgWritten) a._hmdgBase = href;
+      if (!isBookingUrl(a._hmdgBase)) return;
+      var next = decorateBookingUrl(a._hmdgBase);
+      a._hmdgWritten = next;
+      if (next !== href) a.setAttribute('href', next);
     }
     a.addEventListener('mousedown', decorate, {passive: true});
     a.addEventListener('touchstart', decorate, {passive: true});
