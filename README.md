@@ -54,6 +54,13 @@ remains available as the previous release record.
   never overwritten. Only registered booking hosts are decorated.
 - Adds `janeapp.co.uk` to the Jane booking domains. UK Jane links were never
   decorated, counted as Book Now clicks or accepted for iframe completion.
+- Adds PracticeHub, TM3, Nookal, Gensolve and Zanda (Power Diary) as booking
+  platforms, and Acuity's `as.me` short links. Their booking pages run the
+  clinic's own Google tag, so a forwarded click ID can be used there. They
+  decorate links and count Book Now clicks; their completion messages are not
+  known yet, so no completion event fires for them. A one-time step switches
+  them on for sites with saved settings; an admin who later turns one off keeps
+  it off. Expect Book Now counts to rise on these sites after the update.
 - No change to Consent Mode defaults, the consent revision (nobody is asked
   again), cookies, caching or internal links. The plugin still does not set
   `url_passthrough`; Google's own passthrough in GTM carries the click ID

@@ -31,6 +31,10 @@ Separately, the Jane booking domains did not include `janeapp.co.uk`, where UK J
    - Malformed values are dropped. Nothing else (`gad_source`, `utm_*`) is forwarded.
 2. **UK Jane is recognised.** `janeapp.co.uk` links are now decorated, counted as Book Now clicks and
    accepted for iframe completion messages.
+3. **More booking systems.** PracticeHub, TM3, Nookal, Gensolve, Zanda (Power Diary) and Acuity
+   `as.me` links are decorated and counted as Book Now clicks. A 7 November probe found their booking
+   pages running the clinic's own Google tag. No completion event fires for them yet. Book Now counts
+   on these sites will step up after the update: that is newly counted clicks, not growth.
 
 ## What does not change
 
@@ -48,9 +52,12 @@ Separately, the Jane booking domains did not include `janeapp.co.uk`, where UK J
 - **Jane UK:** once the patient presses "Allow all", Jane stores the click ID and Google Ads hits carry
   it. Before consent, Jane's denied, cookieless Google ping also carries the click ID from the landing
   address. How Jane's server-side Ads upload sources the click ID is still undocumented.
+- **PracticeHub, Gensolve, Nookal, Zanda, Acuity:** the booking pages tested store the click ID as
+  soon as they load; most ask for no cookie consent. **TM3** stores it after its own "Accept all".
+  Where a clinic has not put its Google tag on the booking system, nothing is recovered.
 - **Not a fix for:** the nine accounts at zero (each has its own cause), Cliniko's own consent gate,
-  or tracking on other booking systems (Nookal, PracticeHub, TM3 and others are not in the plugin's
-  registry).
+  or Select&Book (its redirect drops the click ID), Semble, Rushcliff, TeamUp, Fresha and Momence
+  (no clinic Google tag on their booking pages).
 - Measure at +7 and +14 days before promising a number to clients.
 
 ## How to verify on a site
