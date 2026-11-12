@@ -40,6 +40,13 @@ remains available as the previous release record.
 
 ## Changelog
 
+### 2.0.14 — matching Accept All and Reject All buttons
+
+- Reject All now uses the same filled primary button style and colours as
+  Accept All in the cookie banner and preferences window, including hover
+  and keyboard focus. Customise and Save My Preferences retain their outline
+  style. Consent choices and the stored policy revision are unchanged.
+
 ### 2.0.13 — booking click IDs for visitors who have not chosen
 
 - Booking links now carry the Google click ID (`gclid`, `gbraid`, `wbraid`)

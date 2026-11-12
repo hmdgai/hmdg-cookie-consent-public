@@ -5,7 +5,7 @@
  * Description:  Cookie consent banner with Google Consent
  *               Mode v2 and booking-conversion tracking. Maintained by HMDG for its client
  *               sites; the changelog is shown with each update.
- * Version:      2.0.13
+ * Version:      2.0.14
  * Author:       HMDG
  * Author URI:   https://hmdg.co.uk
  * License:      GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /* ==========================================================================
    CONSTANTS
 ========================================================================== */
-define( 'HMDG_CCM_VERSION', '2.0.13' );
+define( 'HMDG_CCM_VERSION', '2.0.14' );
 // Revision of the banner's disclosure wording. Raise it when that wording changes, and every
 // stored consent becomes stale. See effective_policy_version(). 2 = v2.0.4 ads-personalisation text.
 define( 'HMDG_CCM_CONSENT_REVISION', '2' );
@@ -1059,7 +1059,7 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
             <div class="hmdg-banner-buttons" role="group" aria-label="Cookie consent options">
                 <button type="button" id="hmdg-btn-accept"    class="hmdg-btn hmdg-btn-primary">Accept All</button>
                 <button type="button" id="hmdg-btn-customise" class="hmdg-btn hmdg-btn-outline">Customise</button>
-                <button type="button" id="hmdg-btn-reject"    class="hmdg-btn hmdg-btn-outline hmdg-btn-decision-outline">Reject All</button>
+                <button type="button" id="hmdg-btn-reject"    class="hmdg-btn hmdg-btn-primary">Reject All</button>
             </div>
         </div>
     </div>
@@ -1117,7 +1117,7 @@ window.gtag('config','<?php echo esc_js($gtag_id); ?>',{anonymize_ip:true});
                 <div class="hmdg-modal-actions" role="group" aria-label="Cookie preference actions">
                     <button type="button" id="hmdg-modal-accept" class="hmdg-btn hmdg-btn-primary">Accept All</button>
                     <button type="button" id="hmdg-modal-save" class="hmdg-btn hmdg-btn-outline hmdg-btn-decision-outline">Save My Preferences</button>
-                    <button type="button" id="hmdg-modal-reject" class="hmdg-btn hmdg-btn-outline hmdg-btn-decision-outline">Reject All</button>
+                    <button type="button" id="hmdg-modal-reject" class="hmdg-btn hmdg-btn-primary">Reject All</button>
                 </div>
                 <p class="hmdg-powered">Powered by <strong>HMDG</strong> &nbsp;&bull;&nbsp; <a href="<?php echo $cp; ?>" class="hmdg-link" target="_blank" rel="noopener" style="font-size:11px;">Cookie Policy</a></p>
             </div>

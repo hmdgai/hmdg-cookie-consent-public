@@ -51,14 +51,14 @@ check( 'banner action DOM and tab order is unchanged',
 $accept = $xpath->query( '//*[@id="hmdg-modal-accept"]' )->item( 0 );
 $save = $xpath->query( '//*[@id="hmdg-modal-save"]' )->item( 0 );
 $reject = $xpath->query( '//*[@id="hmdg-modal-reject"]' )->item( 0 );
-check( 'only modal Accept uses the filled primary treatment',
+check( 'modal Accept and Reject share the filled primary treatment',
     $accept && strpos( ' ' . $accept->getAttribute( 'class' ) . ' ', ' hmdg-btn-primary ' ) !== false
     && $save && strpos( ' ' . $save->getAttribute( 'class' ) . ' ', ' hmdg-btn-primary ' ) === false
-    && $reject && strpos( ' ' . $reject->getAttribute( 'class' ) . ' ', ' hmdg-btn-primary ' ) === false );
-check( 'modal Save and Reject use the dark outline treatment',
+    && $reject && $accept->getAttribute( 'class' ) === $reject->getAttribute( 'class' ) );
+check( 'modal Save alone uses the dark outline treatment',
     $save && $reject
     && strpos( ' ' . $save->getAttribute( 'class' ) . ' ', ' hmdg-btn-decision-outline ' ) !== false
-    && strpos( ' ' . $reject->getAttribute( 'class' ) . ' ', ' hmdg-btn-decision-outline ' ) !== false );
+    && strpos( ' ' . $reject->getAttribute( 'class' ) . ' ', ' hmdg-btn-outline ' ) === false );
 check( 'all modal actions remain native buttons',
     $accept && $save && $reject
     && $accept->tagName === 'button' && $save->tagName === 'button' && $reject->tagName === 'button' );
